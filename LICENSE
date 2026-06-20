@@ -1,0 +1,19 @@
+TODO: CHOOSE A LICENSE BEFORE PUBLICATION
+=========================================
+
+This is a PLACEHOLDER. ARINC633Kit is intended to be released under a permissive
+open-source license — recommended: MIT or Apache-2.0 — but the choice has been left to
+the repository owner.
+
+Before making this repository public:
+
+  1. Replace this file with the full text of the chosen license
+     (e.g. https://opensource.org/license/mit or https://www.apache.org/licenses/LICENSE-2.0).
+  2. Update the "License" section of README.md accordingly.
+  3. Add the appropriate copyright line, e.g.:
+         Copyright (c) <year> <copyright holder>
+
+Note (separate from this library's license): the ARINC Specification 633 and its XSD
+schemas are copyrighted by AEEC / SAE-ITC and are NOT redistributed by this project. This
+placeholder, and any license you choose for the library code, does not grant any rights to
+the specification itself.
