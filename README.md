@@ -142,6 +142,10 @@ concrete subtype in `messageSubtype` (the root element name).
 
 ## Extending
 
+> Got a 633 feed with custom content — a proprietary message type, or vendor‑specific fields inside
+> a standard message? See the **[Extending guide](EXTENDING.md)** for a full walkthrough (custom
+> message types, reading custom fields, overriding built‑ins, and the `CapturedElement` query API).
+
 Dispatch is driven by a value‑semantic `ARINC633MessageRegistry`. Register a handler for your
 root element(s); it never disturbs the built‑ins.
 
