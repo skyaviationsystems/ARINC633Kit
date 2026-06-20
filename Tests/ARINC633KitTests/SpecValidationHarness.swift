@@ -6,7 +6,7 @@
 // did it throw, and (for captured/unmodeled content) which elements were not
 // consumed by a typed model.
 //
-// ⛔ This harness reads the COPYRIGHTED spec locally and never embeds or commits any
+// NOTE: This harness reads the COPYRIGHTED spec locally and never embeds or commits any
 // spec content. It NO-OPS when the spec folder is absent (e.g. in CI), so it is safe
 // to keep in the committed test target.
 //
@@ -56,7 +56,7 @@ struct SpecValidationHarness {
     func validateAllSamples() throws {
         guard let specDir = Self.specDir() else {
             // Spec not present (CI / clean checkout): no-op by design.
-            print("ℹ️ Spec folder not found — skipping local validation harness.")
+            print("[skip] Spec folder not found — skipping local validation harness.")
             return
         }
 
@@ -74,26 +74,26 @@ struct SpecValidationHarness {
             let name = url.lastPathComponent
 
             guard let data = try? Data(contentsOf: url) else {
-                threw += 1; report.append("⚠️ \(name): unreadable"); continue
+                threw += 1; report.append("[WARN] \(name): unreadable"); continue
             }
             do {
                 let message = try parser.parse(data: data)
                 if case let .captured(root) = message {
                     captured += 1
                     let kids = Set(root.children.map(\.name)).sorted().prefix(8)
-                    report.append("◻️ \(name): CAPTURED root=<\(root.name)> children=\(kids.joined(separator: ","))")
+                    report.append("[CAPTURED] \(name): root=<\(root.name)> children=\(kids.joined(separator: ","))")
                 } else {
                     typed += 1
                     let gaps = Self.unmodeledElements(in: message)
                     if gaps.isEmpty {
-                        report.append("✅ \(name): \(Self.label(message))")
+                        report.append("[ OK ] \(name): \(Self.label(message))")
                     } else {
-                        report.append("🟡 \(name): \(Self.label(message)) — unmodeled: \(gaps.sorted().joined(separator: ","))")
+                        report.append("[GAP ] \(name): \(Self.label(message)) — unmodeled: \(gaps.sorted().joined(separator: ","))")
                     }
                 }
             } catch {
                 threw += 1
-                report.append("❌ \(name): THREW \(error)")
+                report.append("[FAIL] \(name): THREW \(error)")
             }
         }
 

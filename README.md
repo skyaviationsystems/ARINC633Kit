@@ -22,13 +22,13 @@ if case let .flightPlan(plan) = message {
 
 ## Features
 
-- 🧩 **Complete 633‑4 coverage** — every official root element parses into a dedicated typed model (45+ roots across 21 message families).
-- 🛟 **Nothing is ever dropped** — unknown roots become `.captured` trees; unrecognized children land in per‑model `extensions` bags.
-- 🔌 **Open & extensible** — register airline/vendor message types through a value‑semantic registry; they arrive as `.custom`.
-- 📐 **Units preserved** — fuel, weights, distances, and altitudes keep their units via Foundation value types (`ARINCWeight`, `ARINCAltitude`, …).
-- ⚡️ **Streaming SAX** — handles large (1 MB+, hundreds‑of‑NOTAMs) briefings efficiently.
-- 🔒 **Swift 6 strict concurrency** — everything is `Sendable`; models are value types.
-- ✅ **Synthetic, exhaustive tests** — plus a local‑only harness that validates against the official sample corpus.
+- **Complete 633‑4 coverage** — every official root element parses into a dedicated typed model (45+ roots across 21 message families).
+- **Nothing is ever dropped** — unknown roots become `.captured` trees; unrecognized children land in per‑model `extensions` bags.
+- **Open & extensible** — register airline/vendor message types through a value‑semantic registry; they arrive as `.custom`.
+- **Units preserved** — fuel, weights, distances, and altitudes keep their units via Foundation value types (`ARINCWeight`, `ARINCAltitude`, …).
+- **Streaming SAX** — handles large (1 MB+, hundreds‑of‑NOTAMs) briefings efficiently.
+- **Swift 6 strict concurrency** — everything is `Sendable`; models are value types.
+- **Synthetic, exhaustive tests** — plus a local‑only harness that validates against the official sample corpus.
 
 > [!IMPORTANT]
 > **Independent, clean‑room implementation.** This package reads and writes ARINC 633‑4–conformant
@@ -200,8 +200,8 @@ if case let .custom(custom) = try parser.parse(data: xml),
 |---|---|
 | `SAXParserEngine` | Base `XMLParserDelegate` with element‑stack tracking + character buffering. Namespaces processed; matching on **local element names**. |
 | `HeaderAwareSAXParser` | Centralizes (and hardens) ARINC 633 envelope parsing so payload parsers stay focused. |
-| `GenericElementParser` → `CapturedElement` | Schema‑agnostic tree capture. Backs the `.captured` fallback and the `extensions` bags. New typed parsers are written as tree‑walks over it, with reusable envelope/value helpers. |
-| `ARINC633MessageRegistry` | Open, `Sendable`, value‑semantic root‑element → handler dispatch. `.standard` registers all built‑ins; `.registering(_:_:)` adds custom types. |
+| `GenericElementParser` -> `CapturedElement` | Schema‑agnostic tree capture. Backs the `.captured` fallback and the `extensions` bags. New typed parsers are written as tree‑walks over it, with reusable envelope/value helpers. |
+| `ARINC633MessageRegistry` | Open, `Sendable`, value‑semantic root‑element -> handler dispatch. `.standard` registers all built‑ins; `.registering(_:_:)` adds custom types. |
 | `ARINC633Message` | One case per message type, plus `.captured` and `.custom`. |
 | Foundation value types | `ARINC633Duration`, `ARINCCoordinate`, `ARINC633Measurement` (weight / distance / altitude / speed / temperature / …), `EstimatedActual`, shared enums. Reused everywhere to preserve units. |
 | EFF container | `ZIPFoundation` unpacks the double‑zipped Electronic Flight Folder; inner products dispatch through the same registry. |

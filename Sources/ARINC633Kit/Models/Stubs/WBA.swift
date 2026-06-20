@@ -222,7 +222,7 @@ public struct WBALoading: Sendable, Equatable {
     public var fuelOnBoard: WBAWeight?
     /// Estimated taxi fuel burnt at departure (`<TaxiFuel>`).
     public var taxiFuel: WBAWeight?
-    /// Estimated trip fuel, departure→arrival (`<TripFuel>`).
+    /// Estimated trip fuel, departure->arrival (`<TripFuel>`).
     public var tripFuel: WBAWeight?
     /// Fuel density (`<FuelDensity>`, g/cm3, range 0.5...1.0).
     public var fuelDensity: Double?
@@ -362,7 +362,7 @@ public struct WBAPaxSection: Sendable, Equatable {
     public var section: String
     /// Passenger count in this section (`@sectionPaxNumber`).
     public var paxNumber: Int?
-    /// Optional per-type breakdown (`<PaxPerType>`: type → count).
+    /// Optional per-type breakdown (`<PaxPerType>`: type -> count).
     public var paxPerType: [WBAPaxType]
 
     public init(section: String, paxNumber: Int? = nil, paxPerType: [WBAPaxType] = []) {
