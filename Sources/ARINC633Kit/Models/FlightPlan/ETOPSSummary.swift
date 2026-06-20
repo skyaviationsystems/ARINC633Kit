@@ -10,6 +10,10 @@ public struct ETOPSSummary: Sendable, Equatable {
     /// ETOPS rule time from ruleTime attribute (e.g., PT03H00M = 180 min).
     public var ruleTime: ARINC633Duration?
 
+    /// ETOPS threshold/border time (`ETOPSSummary/@borderTime`, xs:duration) — the time
+    /// to the ETOPS entry point. SAFETY-RELEVANT: present in all official samples.
+    public var borderTime: ARINC633Duration?
+
     /// Whether this flight is an ETOPS flight (from NonStandardFlightPlanningType ETOPS element).
     public var isETOPS: Bool
 

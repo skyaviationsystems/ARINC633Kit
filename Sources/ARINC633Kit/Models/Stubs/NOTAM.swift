@@ -26,18 +26,23 @@ public struct NOTAMBriefing: Sendable, Equatable {
     /// Individual NOTAM items.
     public var notams: [NOTAMItem]
 
+    /// Unrecognized child elements of the briefing, preserved verbatim.
+    public var extensions: [CapturedElement]
+
     public init(header: ARINC633Header = ARINC633Header(),
                 supplementaryHeader: SupplementaryHeader = SupplementaryHeader(),
                 briefingType: String? = nil,
                 creationTime: String? = nil,
                 fullPackage: Bool = false,
-                notams: [NOTAMItem] = []) {
+                notams: [NOTAMItem] = [],
+                extensions: [CapturedElement] = []) {
         self.header = header
         self.supplementaryHeader = supplementaryHeader
         self.briefingType = briefingType
         self.creationTime = creationTime
         self.fullPackage = fullPackage
         self.notams = notams
+        self.extensions = extensions
     }
 }
 
@@ -70,11 +75,36 @@ public struct NOTAMItem: Sendable, Equatable {
     /// NOTAM text content from NOTAMText/Paragraph/Text elements.
     public var text: String?
 
-    /// Airport ICAO code this NOTAM applies to (from Keys/Airports).
+    /// First affected airport ICAO code (from Keys/Airports). Convenience accessor;
+    /// see `airports` for the full list when a NOTAM affects several.
     public var airport: String?
 
-    /// Severity level parsed from NOTAMSubject "sev:XXX" pattern (e.g., "medium", "high").
+    /// All affected airport ICAO codes (`Keys/Airports/Airport/AirportICAOCode`).
+    public var airports: [String]
+
+    /// Affected airspace ICAO codes (`Keys/Airspaces/Airspace/AirspaceICAOCode`).
+    public var airspaces: [String]
+
+    /// NOTAM subject keyword(s) (`NOTAMSubjects/NOTAMSubject`), e.g. "Runway",
+    /// "Airport", "Airspace". (These are the real 633-4 subject values — the field is
+    /// NOT a "sev:"-encoded severity.)
+    public var subjects: [String]
+
+    /// Deprecated: never populated by ARINC 633-4 data (the prior "sev:" convention does
+    /// not exist in the spec). Use `subjects`. Retained for source compatibility.
     public var severity: String?
+
+    /// End-validity qualifier (`@endValidTimeQualifier`), e.g. "PERM"/"EST" when present.
+    public var endValidTimeQualifier: String?
+
+    /// Issuer type (`@issuerType`), e.g. "ICAO".
+    public var issuerType: String?
+
+    /// Revision time (`@revisionTime`, ISO 8601), when present.
+    public var revisionTime: String?
+
+    /// Display/order sequence (`@sequence`), when present.
+    public var sequence: Int?
 
     /// Briefing section categories (e.g., "RUNWAY", "GENERAL", "COMMUNICATION").
     public var briefingSections: [String]
@@ -97,15 +127,23 @@ public struct NOTAMItem: Sendable, Equatable {
     /// Scope from ICAONOTAMInformation (e.g., "A" for aerodrome).
     public var scope: String?
 
+    /// Unrecognized child elements of this NOTAM, preserved verbatim.
+    public var extensions: [CapturedElement]
+
     public init(serial: String? = nil, series: String? = nil, year: String? = nil,
                 issuer: String? = nil, source: String? = nil,
                 startValidTime: String? = nil, endValidTime: String? = nil,
                 creationTime: String? = nil,
                 text: String? = nil, airport: String? = nil,
-                severity: String? = nil, briefingSections: [String] = [],
+                airports: [String] = [], airspaces: [String] = [],
+                subjects: [String] = [], severity: String? = nil,
+                endValidTimeQualifier: String? = nil, issuerType: String? = nil,
+                revisionTime: String? = nil, sequence: Int? = nil,
+                briefingSections: [String] = [],
                 upperAltitude: Int? = nil, lowerAltitude: Int? = nil,
                 qcode1: String? = nil, qcode2: String? = nil,
-                trafficIndicator: String? = nil, scope: String? = nil) {
+                trafficIndicator: String? = nil, scope: String? = nil,
+                extensions: [CapturedElement] = []) {
         self.serial = serial
         self.series = series
         self.year = year
@@ -116,7 +154,14 @@ public struct NOTAMItem: Sendable, Equatable {
         self.creationTime = creationTime
         self.text = text
         self.airport = airport
+        self.airports = airports
+        self.airspaces = airspaces
+        self.subjects = subjects
         self.severity = severity
+        self.endValidTimeQualifier = endValidTimeQualifier
+        self.issuerType = issuerType
+        self.revisionTime = revisionTime
+        self.sequence = sequence
         self.briefingSections = briefingSections
         self.upperAltitude = upperAltitude
         self.lowerAltitude = lowerAltitude
@@ -124,5 +169,6 @@ public struct NOTAMItem: Sendable, Equatable {
         self.qcode2 = qcode2
         self.trafficIndicator = trafficIndicator
         self.scope = scope
+        self.extensions = extensions
     }
 }

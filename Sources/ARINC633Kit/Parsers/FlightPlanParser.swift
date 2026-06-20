@@ -667,6 +667,11 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
             } else {
                 flightPlan.etopsSummary?.isETOPS = wasETOPS
             }
+            // borderTime (ETOPS threshold time) is present on the summary in every
+            // official sample, independent of ruleTime.
+            if let borderTimeStr = attributes["borderTime"] {
+                flightPlan.etopsSummary?.borderTime = ARINC633Duration(from: borderTimeStr)
+            }
 
         case "CriticalPositions" where currentSection == .etopsSummary:
             inCriticalPositions = true

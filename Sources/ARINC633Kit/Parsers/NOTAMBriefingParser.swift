@@ -115,6 +115,16 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
             currentNOTAM.startValidTime = attributes["startValidTime"]
             currentNOTAM.endValidTime = attributes["endValidTime"]
             currentNOTAM.creationTime = attributes["creationTime"]
+            currentNOTAM.endValidTimeQualifier = attributes["endValidTimeQualifier"]
+            currentNOTAM.issuerType = attributes["issuerType"]
+            currentNOTAM.revisionTime = attributes["revisionTime"]
+            currentNOTAM.sequence = attributes["sequence"].flatMap { Int($0) }
+
+        case "Airspace":
+            // Affected airspace key — ICAO is the `airspaceICAOCode` attribute.
+            if inNOTAM, stackContains("Keys"), let icao = attributes["airspaceICAOCode"], !icao.isEmpty {
+                currentNOTAM.airspaces.append(icao)
+            }
 
         case "ICAONOTAMInformation":
             if inNOTAM {
@@ -166,9 +176,11 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
 
         case "AirportICAOCode":
             if inNOTAM {
-                // Inside a NOTAM's Keys/Airports/Airport
-                if stackContains("Keys") {
-                    currentNOTAM.airport = text
+                // Inside a NOTAM's Keys/Airports/Airport — capture all, keep first as the
+                // convenience `airport`.
+                if stackContains("Keys") && !text.isEmpty {
+                    currentNOTAM.airports.append(text)
+                    if currentNOTAM.airport == nil { currentNOTAM.airport = text }
                 }
             } else if inSuppHeader {
                 if stackContains("DepartureAirport") {
@@ -195,14 +207,10 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
         // -- NOTAM child elements --
 
         case "NOTAMSubject":
+            // The real 633-4 value is a subject keyword (e.g. "Runway", "Airspace"),
+            // not a "sev:"-encoded severity. Capture it as a subject.
             if inNOTAM && !text.isEmpty {
-                // Parse severity from "sev:medium" pattern
-                if text.hasPrefix("sev:") {
-                    let severity = String(text.dropFirst(4))
-                    if !severity.isEmpty {
-                        currentNOTAM.severity = severity
-                    }
-                }
+                currentNOTAM.subjects.append(text)
             }
 
         case "BriefingSection":
