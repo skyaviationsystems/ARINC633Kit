@@ -33,7 +33,18 @@ public struct ETOPSSummary: Sendable, Equatable {
     public var maxDiversionTime: ARINC633Duration?
 
     /// ETOPS adequate airport ICAO codes (legacy summary list).
+    ///
+    /// Kept for source compatibility; populated with the ICAO code of each entry in
+    /// `summaryAdequateAirports`.
     public var adequateAirports: [String]
+
+    /// Summary-level `ETOPSSummary/AdequateAirports/AdequateAirport` entries
+    /// (AirportFullIdentificationType: ICAO / IATA / name / function).
+    ///
+    /// These sit at the summary level (after `CriticalPositions`) and were previously
+    /// dropped — the parser only handled `AdequateAirport` nested under a critical
+    /// position. Full identification (ICAO/IATA/name) is preserved here.
+    public var summaryAdequateAirports: [AdequateAirport]
 
     /// Critical positions with detailed diversion data.
     public var criticalPositions: [CriticalPosition]
@@ -41,6 +52,7 @@ public struct ETOPSSummary: Sendable, Equatable {
     public init() {
         self.isETOPS = false
         self.adequateAirports = []
+        self.summaryAdequateAirports = []
         self.criticalPositions = []
     }
 }

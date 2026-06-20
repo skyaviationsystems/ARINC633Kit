@@ -43,11 +43,13 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
     private var inNOTAM = false
     private var currentNOTAM = NOTAMItem()
     private var notamTextParagraphs: [String] = []
+    private var remarkParagraphs: [String] = []
 
     // MARK: - Section Tracking
 
     private var inUpperAltitude = false
     private var inLowerAltitude = false
+    private var inRemark = false
 
     // MARK: - Public Interface
 
@@ -59,7 +61,59 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
     func parse(data: Data) throws -> NOTAMBriefing {
         try run(data: data)
         finalizeHeaders()
+        try captureExtensions(from: data)
         return result
+    }
+
+    /// Local names this parser models as direct children of `<NOTAMBriefing>`.
+    /// Anything else (vendor `xs:any`-style extensions) is preserved in
+    /// `NOTAMBriefing.extensions`.
+    private static let modeledBriefingChildren: Set<String> = [
+        "M633Header", "M633SupplementaryHeader", "NOTAMs", "NOTAM"
+    ]
+
+    /// Local names this parser models as direct children of a `<NOTAM>`. The schema
+    /// terminates the NOTAM content model with `<xs:any namespace="##other"/>`, so any
+    /// other child (Location/Geography/AltitudeLimit/Countries/Routes/Waypoints/…) is
+    /// preserved in that NOTAM's `extensions` bag rather than dropped.
+    private static let modeledNOTAMChildren: Set<String> = [
+        "NOTAMSubjects", "BriefingSections", "NOTAMText", "Keys",
+        "Altitudes", "ICAONOTAMInformation", "Remark"
+    ]
+
+    /// Second pass: walk the full document tree and append every direct child our SAX
+    /// pass does not model — at the briefing level and inside each `<NOTAM>` — to the
+    /// corresponding `extensions` bag. NOTAMs are matched to parsed items by document
+    /// order. This guarantees nothing well-formed is silently discarded.
+    private func captureExtensions(from data: Data) throws {
+        let tree = try GenericElementParser().parse(data: data)
+
+        // (a) Unmodeled direct children of <NOTAMBriefing>.
+        for child in tree.children where !Self.modeledBriefingChildren.contains(child.name) {
+            result.extensions.append(child)
+        }
+
+        // (b) For each <NOTAM> (in document order), unmodeled direct children.
+        var notamElements: [CapturedElement] = []
+        collectNOTAMElements(in: tree, into: &notamElements)
+        for (index, notamEl) in notamElements.enumerated() where index < result.notams.count {
+            let extras = notamEl.children.filter { !Self.modeledNOTAMChildren.contains($0.name) }
+            if !extras.isEmpty {
+                result.notams[index].extensions.append(contentsOf: extras)
+            }
+        }
+    }
+
+    /// Depth-first collection of `<NOTAM>` elements in document order.
+    private func collectNOTAMElements(in element: CapturedElement,
+                                      into out: inout [CapturedElement]) {
+        for child in element.children {
+            if child.name == "NOTAM" {
+                out.append(child)
+            } else {
+                collectNOTAMElements(in: child, into: &out)
+            }
+        }
     }
 
     // MARK: - Start Element
@@ -105,6 +159,8 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
             inNOTAM = true
             currentNOTAM = NOTAMItem()
             notamTextParagraphs = []
+            remarkParagraphs = []
+            inRemark = false
 
             // Capture all NOTAM element attributes
             currentNOTAM.issuer = attributes["issuer"]
@@ -119,6 +175,12 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
             currentNOTAM.issuerType = attributes["issuerType"]
             currentNOTAM.revisionTime = attributes["revisionTime"]
             currentNOTAM.sequence = attributes["sequence"].flatMap { Int($0) }
+            // Additional NOTAM attributes (@priority default 3, @consideredInFlightPlan,
+            // @startApplicabilityTime, @endApplicabilityTime).
+            currentNOTAM.priority = attributes["priority"].flatMap { Int($0) }
+            currentNOTAM.consideredInFlightPlan = attributes["consideredInFlightPlan"].map { $0 == "true" || $0 == "1" }
+            currentNOTAM.startApplicabilityTime = attributes["startApplicabilityTime"]
+            currentNOTAM.endApplicabilityTime = attributes["endApplicabilityTime"]
 
         case "Airspace":
             // Affected airspace key — ICAO is the `airspaceICAOCode` attribute.
@@ -132,7 +194,14 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
                 currentNOTAM.qcode2 = attributes["qcode2"]
                 currentNOTAM.trafficIndicator = attributes["trafficIndicator"]
                 currentNOTAM.scope = attributes["scope"]
+                currentNOTAM.purpose = attributes["purpose"]
+                currentNOTAM.fIR = attributes["fIR"]
+                currentNOTAM.lowerAlt = attributes["lowerAlt"].flatMap { Int($0) }
+                currentNOTAM.upperAlt = attributes["upperAlt"].flatMap { Int($0) }
             }
+
+        case "Remark":
+            if inNOTAM { inRemark = true }
 
         case "Upper":
             if inNOTAM && stackContains("Altitudes") {
@@ -219,22 +288,70 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
             }
 
         case "Text":
-            if inNOTAM && stackContains("NOTAMText") && stackContains("Paragraph") {
-                if !text.isEmpty {
+            // Both NOTAMText and Remark are TextType (Paragraph/Text). Route by which
+            // container we are inside so Remark prose does not bleed into the body text.
+            if inNOTAM && stackContains("Paragraph") && !text.isEmpty {
+                if inRemark && stackContains("Remark") {
+                    remarkParagraphs.append(text)
+                } else if stackContains("NOTAMText") {
                     notamTextParagraphs.append(text)
                 }
             }
 
         case "Value":
-            if inNOTAM && stackContains("Altitudes") {
-                if let intVal = Int(text) {
-                    if inUpperAltitude {
-                        currentNOTAM.upperAltitude = intVal
-                    } else if inLowerAltitude {
-                        currentNOTAM.lowerAltitude = intVal
-                    }
+            // Altitudes/Value is an xs:float with a (default "ft/100") @unit. Preserve
+            // both as ARINCAltitude; also keep the truncated Int fields populated for
+            // source compatibility. Handles the Upper/Lower bound case and the repeating
+            // bare <Altitude> choice (no Upper/Lower) of AltitudeInfoType.
+            if inNOTAM && stackContains("Altitudes"), let dbl = Double(text) {
+                let unit = currentAttributes["unit"] ?? "ft/100"
+                let measured = ARINCAltitude(value: dbl, unit: unit)
+                if inUpperAltitude {
+                    currentNOTAM.upperAltitudeMeasured = measured
+                    currentNOTAM.upperAltitude = Int(dbl)
+                } else if inLowerAltitude {
+                    currentNOTAM.lowerAltitudeMeasured = measured
+                    currentNOTAM.lowerAltitude = Int(dbl)
+                } else {
+                    // Bare <Altitude><Value/></Altitude> applicability altitude.
+                    currentNOTAM.altitudes.append(measured)
                 }
             }
+
+        // -- ICAONOTAMInformation decoded items (ItemA/B/C/D/F/G; no ItemE in schema) --
+
+        case "ItemA":
+            if inNOTAM && stackContains("ICAONOTAMInformation") && !text.isEmpty {
+                currentNOTAM.itemA = text
+            }
+
+        case "ItemB":
+            if inNOTAM && stackContains("ICAONOTAMInformation") && !text.isEmpty {
+                currentNOTAM.itemB = text
+            }
+
+        case "ItemC":
+            if inNOTAM && stackContains("ICAONOTAMInformation") && !text.isEmpty {
+                currentNOTAM.itemC = text
+            }
+
+        case "ItemD":
+            if inNOTAM && stackContains("ICAONOTAMInformation") && !text.isEmpty {
+                currentNOTAM.itemD = text
+            }
+
+        case "ItemF":
+            if inNOTAM && stackContains("ICAONOTAMInformation") && !text.isEmpty {
+                currentNOTAM.itemF = text
+            }
+
+        case "ItemG":
+            if inNOTAM && stackContains("ICAONOTAMInformation") && !text.isEmpty {
+                currentNOTAM.itemG = text
+            }
+
+        case "Remark":
+            inRemark = false
 
         case "Upper":
             inUpperAltitude = false
@@ -247,12 +364,17 @@ final class NOTAMBriefingParser: SAXParserEngine, @unchecked Sendable {
             if !notamTextParagraphs.isEmpty {
                 currentNOTAM.text = notamTextParagraphs.joined(separator: "\n")
             }
+            if !remarkParagraphs.isEmpty {
+                currentNOTAM.remark = remarkParagraphs.joined(separator: "\n")
+            }
             result.notams.append(currentNOTAM)
             currentNOTAM = NOTAMItem()
             notamTextParagraphs = []
+            remarkParagraphs = []
             inNOTAM = false
             inUpperAltitude = false
             inLowerAltitude = false
+            inRemark = false
 
         default:
             break

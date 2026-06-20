@@ -127,6 +127,29 @@ public struct Waypoint: Sendable, Equatable {
     /// Minimum fuel on board.
     public var minimumFuel: ARINCWeight?
 
+    /// Aircraft gross weight at this waypoint (`AircraftWeight`, ZeroFuelWeight + FuelOnBoard).
+    /// SAFETY-RELEVANT actual gross weight; estimated/actual pair.
+    public var aircraftWeight: EstimatedActual<ARINCWeight>
+
+    /// `CalculatedFuelOnBoard` — difference between CumulatedBurnOff and actual TakeOffFuel.
+    public var calculatedFuelOnBoard: ARINCWeight?
+
+    /// `FuelOnBoardDifference` — difference between estimated and actual FuelOnBoard.
+    public var fuelOnBoardDifference: ARINCWeight?
+
+    /// `CumulatedBurnOffDifference` — difference between estimated and actual CumulatedBurnOff.
+    public var cumulatedBurnOffDifference: ARINCWeight?
+
+    /// `LeakDetection` — sum of FuelOnBoardDifference and CumulatedBurnOffDifference.
+    /// SAFETY-RELEVANT fuel-leak indicator.
+    public var leakDetection: ARINCWeight?
+
+    /// `SegmentCrossWindComponent` — average cross wind component from previous waypoint.
+    public var segmentCrossWindComponent: ARINCSpeed?
+
+    /// `SegmentShearRate/SegmentVerticalWindChange` — vertical wind speed change from previous waypoint.
+    public var segmentShearRate: ARINCSpeed?
+
     /// Flight information region.
     public var flightInformationRegion: String?
 
@@ -183,6 +206,7 @@ public struct Waypoint: Sendable, Equatable {
         self.burnOff = EstimatedActual()
         self.cumulatedBurnOff = EstimatedActual()
         self.fuelOnBoard = EstimatedActual()
+        self.aircraftWeight = EstimatedActual()
         self.navaidFrequencies = []
         self.airspaceTraversals = []
         self.safeAltitudes = []

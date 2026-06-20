@@ -88,8 +88,54 @@ public struct FuelHeader: Sendable, Equatable {
     /// Tankering advice data from TankeringInfo element.
     public var tankeringAdvice: TankeringData?
 
-    /// Possible extra fuel weight (from PossibleExtraFuel).
+    /// Loadable extra fuel weight from `PossibleExtraFuel/PossibleExtra` (a Weight).
+    ///
+    /// This is the fuel that could additionally be loaded — distinct from
+    /// `maxExtraFuelWeight`, which comes from `PossibleExtraFuel/MaximumFuelWeight/Weight`
+    /// (the tank capacity). Previously this field was wrongly filled from MaximumFuelWeight.
     public var possibleExtraFuelWeight: ARINCWeight?
+
+    /// Fuel density from `PossibleExtraFuel/MaximumFuelWeight/Density` (e.g. g/cm3), when present.
+    public var maximumFuelDensity: ARINCDensity?
+
+    /// `ETOPSFuel` line (FuelHeaderLineBasicType: EstimatedWeight + Duration).
+    public var etopsFuel: ARINCWeight?
+
+    /// `ETOPSFuel` duration.
+    public var etopsDuration: ARINC633Duration?
+
+    /// `NoAlternateFinalReserve` line (FuelHeaderLineBasicType): final reserve when planned with no alternate.
+    public var noAlternateFinalReserveFuel: ARINCWeight?
+
+    /// `NoAlternateFinalReserve` duration.
+    public var noAlternateFinalReserveDuration: ARINC633Duration?
+
+    /// `NoAlternate` flag — flight plan computed without an alternate fuel airport.
+    public var noAlternate: Bool?
+
+    /// `ContingencySavingsAdditionalFuel` line (FuelHeaderLineBasicType).
+    public var contingencySavingsAdditionalFuel: ARINCWeight?
+
+    /// `ContingencySavingsAdditionalFuel` duration.
+    public var contingencySavingsAdditionalDuration: ARINC633Duration?
+
+    /// `CaptainProtectedExtraFuel` line (FuelHeaderLineReasonType) — captain extra fuel that impacts trip fuel.
+    public var captainProtectedExtraFuel: ARINCWeight?
+
+    /// `CaptainProtectedExtraFuel` duration.
+    public var captainProtectedExtraDuration: ARINC633Duration?
+
+    /// `CaptainUnprotectedExtraFuel` line (FuelHeaderLineReasonType).
+    public var captainUnprotectedExtraFuel: ARINCWeight?
+
+    /// `CaptainUnprotectedExtraFuel` duration.
+    public var captainUnprotectedExtraDuration: ARINC633Duration?
+
+    /// `BlockFuel/FuelOnBoardAfterRefueling` — fuel in tank after refueling.
+    public var fuelOnBoardAfterRefueling: ARINCWeight?
+
+    /// `ContingencyFuel/ContingencyPolicy/EnrouteAlternateAirport` ICAO code, when present.
+    public var contingencyEnrouteAlternateAirportICAO: String?
 
     /// Remarks within fuel header.
     public var remarks: [String]
@@ -197,9 +243,16 @@ public struct ExtraFuelItem: Sendable, Equatable {
     /// Duration.
     public let duration: ARINC633Duration?
 
-    public init(reason: FuelCategory, weight: ARINCWeight? = nil, duration: ARINC633Duration? = nil) {
+    /// Whether this extra fuel came from `ProtectedExtraFuels` (`true`) vs
+    /// `UnprotectedExtraFuels` (`false`). `nil` when the item was outside either
+    /// wrapper (legacy `ExtraFuel`). Protected extra fuel is preserved through
+    /// reclearance/redispatch fuel optimization; unprotected may be consumed.
+    public let protected: Bool?
+
+    public init(reason: FuelCategory, weight: ARINCWeight? = nil, duration: ARINC633Duration? = nil, protected: Bool? = nil) {
         self.reason = reason
         self.weight = weight
         self.duration = duration
+        self.protected = protected
     }
 }

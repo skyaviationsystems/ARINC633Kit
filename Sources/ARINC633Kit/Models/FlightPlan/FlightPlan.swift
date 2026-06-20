@@ -107,6 +107,16 @@ public struct FlightPlan: Sendable, Equatable {
     /// Non-standard flight planning type (e.g., "reclearance").
     public var contingencySavingType: String?
 
+    /// Unrecognized DIRECT children of the root `<FlightPlan>` element, preserved verbatim.
+    ///
+    /// After the SAX pass completes, the parser re-walks the document with
+    /// `GenericElementParser` and appends every direct child of `<FlightPlan>` whose
+    /// local name is NOT one of the modeled top-level sections (see the parser's
+    /// `modeledTopLevelNames` set). This guarantees that well-formed content the kit
+    /// does not yet model — airline/vendor extensions or newer spec additions — is
+    /// never silently dropped. The captured subtree is queryable via `CapturedElement`.
+    public var extensions: [CapturedElement]
+
     public init() {
         self.header = ARINC633Header()
         self.supplementaryHeader = SupplementaryHeader()
@@ -115,5 +125,6 @@ public struct FlightPlan: Sendable, Equatable {
         self.airportData = []
         self.remarks = []
         self.crewList = []
+        self.extensions = []
     }
 }

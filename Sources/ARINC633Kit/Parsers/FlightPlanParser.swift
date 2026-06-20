@@ -112,6 +112,9 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
     private var inCriticalPositions = false
     private var inSuitableAirport = false
     private var inAdequateAirport = false
+    // Summary-level AdequateAirports (ETOPSSummary/AdequateAirports, outside CriticalPositions)
+    private var inSummaryAdequateAirports = false
+    private var currentSummaryAdequateAirport: AdequateAirport?
     private var inTerrainAvoidance = false
     private var etopsSuitableAirportParent: String = ""
     // Safe altitude builder (used inside both SuitableAirport and AdequateAirport terrain avoidance)
@@ -150,6 +153,13 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
     private var inMinimumTakeOffFuel = false
     private var inLandingFuel = false
 
+    // Additional FuelHeaderLineBasicType lines (Item 4)
+    private var currentFuelLine: String = ""
+
+    // Protected vs Unprotected extra fuel wrapper (Item 5): true=protected,
+    // false=unprotected, nil=neither (legacy bare ExtraFuel).
+    private var extraFuelProtected: Bool? = nil
+
     // Airspace traversal builder (within waypoints)
     private var currentAirspaceName: String = ""
     private var currentAirspaceICAOCode: String?
@@ -172,11 +182,37 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
 
     // MARK: - Public API
 
+    /// Local names of `<FlightPlan>` direct children that this SAX parser models.
+    ///
+    /// Any well-formed direct child NOT in this set is swept into
+    /// `FlightPlan.extensions` (see `parse(data:)`) so nothing is silently dropped.
+    private static let modeledTopLevelNames: Set<String> = [
+        // Envelope
+        "M633Header", "M633LTDHeader",
+        "M633SupplementaryHeader", "M633LTDSupplementaryHeader",
+        // Modeled payload sections
+        "FlightInfo", "Remarks", "FlightPlanHeader", "FuelHeader", "WeightHeader",
+        "Waypoints", "FlightPlanSummary", "NonStandardFlightPlanningType",
+        "ETOPSSummary", "AlternateRoutes", "AirportDataList",
+        "ContingencySavingHeader", "FuelStatistics", "TankeringInfo",
+        "TerrainClearance"
+    ]
+
     /// Parse FlightPlan XML data into a FlightPlan model.
     func parse(data: Data) throws -> FlightPlan {
         flightPlan = FlightPlan()
         currentSection = .none
         try run(data: data)
+
+        // Extensions sweep: re-walk the document and preserve any direct child of the
+        // root <FlightPlan> whose local name is not modeled above. Guarantees that
+        // well-formed airline/vendor extensions or newer spec additions survive.
+        if let root = try? GenericElementParser().parse(data: data), root.name == "FlightPlan" {
+            for child in root.children where !Self.modeledTopLevelNames.contains(child.name) {
+                flightPlan.extensions.append(child)
+            }
+        }
+
         return flightPlan
     }
 
@@ -434,6 +470,12 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
                 additionalDuration = nil
             }
 
+        // Protected vs Unprotected extra fuel wrappers (Item 5)
+        case "ProtectedExtraFuels" where currentSection == .fuelHeader:
+            extraFuelProtected = true
+        case "UnprotectedExtraFuels" where currentSection == .fuelHeader:
+            extraFuelProtected = false
+
         case "ExtraFuel":
             if currentSection == .fuelHeader {
                 inExtraFuel = true
@@ -441,6 +483,19 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
                 extraWeight = nil
                 extraDuration = nil
             }
+
+        // Additional standalone fuel lines (Item 4). FuelHeaderLineBasicType /
+        // FuelHeaderLineReasonType: EstimatedWeight + Duration.
+        case "ETOPSFuel" where currentSection == .fuelHeader:
+            currentFuelLine = "ETOPSFuel"
+        case "NoAlternateFinalReserve" where currentSection == .fuelHeader:
+            currentFuelLine = "NoAlternateFinalReserve"
+        case "ContingencySavingsAdditionalFuel" where currentSection == .fuelHeader:
+            currentFuelLine = "ContingencySavingsAdditionalFuel"
+        case "CaptainProtectedExtraFuel" where currentSection == .fuelHeader:
+            currentFuelLine = "CaptainProtectedExtraFuel"
+        case "CaptainUnprotectedExtraFuel" where currentSection == .fuelHeader:
+            currentFuelLine = "CaptainUnprotectedExtraFuel"
 
         // Weight context tracking
         case "WeightHeader":
@@ -675,6 +730,17 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
 
         case "CriticalPositions" where currentSection == .etopsSummary:
             inCriticalPositions = true
+
+        // Summary-level AdequateAirports list (sits at ETOPSSummary level, after
+        // CriticalPositions). Distinct from the per-critical-position AdequateAirport
+        // shape — these are AirportFullIdentificationType (ICAO/IATA/name/function).
+        case "AdequateAirports" where currentSection == .etopsSummary && !inCriticalPositions:
+            inSummaryAdequateAirports = true
+
+        case "AdequateAirport" where inSummaryAdequateAirports:
+            var airport = AdequateAirport()
+            airport.airportName = attributes["airportName"]
+            currentSummaryAdequateAirport = airport
 
         case "SuitableAirport" where currentCriticalPosition != nil:
             inSuitableAirport = true
@@ -1030,11 +1096,29 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
                 let item = ExtraFuelItem(
                     reason: FuelCategory(rawValue: currentExtraReason),
                     weight: extraWeight,
-                    duration: extraDuration
+                    duration: extraDuration,
+                    protected: extraFuelProtected
                 )
                 flightPlan.fuelHeader?.extraFuels.append(item)
                 inExtraFuel = false
             }
+
+        // Protected/Unprotected extra fuel wrappers end (Item 5)
+        case "ProtectedExtraFuels" where currentSection == .fuelHeader:
+            extraFuelProtected = nil
+        case "UnprotectedExtraFuels" where currentSection == .fuelHeader:
+            extraFuelProtected = nil
+
+        // Additional standalone fuel lines end (Item 4)
+        case "ETOPSFuel", "NoAlternateFinalReserve", "ContingencySavingsAdditionalFuel",
+             "CaptainProtectedExtraFuel", "CaptainUnprotectedExtraFuel":
+            if currentSection == .fuelHeader { currentFuelLine = "" }
+
+        // NoAlternate boolean flag (Item 4): lives in NonStandardFlightPlanningType.
+        // Indicates the plan was computed without an alternate-fuel airport.
+        case "NoAlternate" where stackContains("NonStandardFlightPlanningType"):
+            if flightPlan.fuelHeader == nil { flightPlan.fuelHeader = FuelHeader() }
+            flightPlan.fuelHeader?.noAlternate = text.lowercased() == "true"
 
         case "FuelHeader":
             if currentSection == .contingencySavingFuelHeader {
@@ -1271,6 +1355,19 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
             currentSuitableAirport = nil
             inSuitableAirport = false
 
+        case "AdequateAirport" where inSummaryAdequateAirports:
+            if let airport = currentSummaryAdequateAirport {
+                flightPlan.etopsSummary?.summaryAdequateAirports.append(airport)
+                // Mirror ICAO into the legacy [String] list for source compatibility.
+                if let icao = airport.airportICAO {
+                    flightPlan.etopsSummary?.adequateAirports.append(icao)
+                }
+            }
+            currentSummaryAdequateAirport = nil
+
+        case "AdequateAirports" where inSummaryAdequateAirports:
+            inSummaryAdequateAirports = false
+
         case "AdequateAirport" where currentCriticalPosition != nil:
             if let airport = currentAdequateAirport {
                 currentCriticalPosition?.adequateAirports.append(airport)
@@ -1419,6 +1516,40 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
             return
         }
 
+        // Additional standalone fuel lines (Item 4)
+        if !currentFuelLine.isEmpty {
+            let isWeight = (p == "EstimatedWeight")
+            let isDuration = (p == "Duration" || gp == "Duration")
+            let w = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            let d = ARINC633Duration(from: text)
+            switch currentFuelLine {
+            case "ETOPSFuel":
+                if isWeight { flightPlan.fuelHeader?.etopsFuel = w }
+                else if isDuration { flightPlan.fuelHeader?.etopsDuration = d }
+            case "NoAlternateFinalReserve":
+                if isWeight { flightPlan.fuelHeader?.noAlternateFinalReserveFuel = w }
+                else if isDuration { flightPlan.fuelHeader?.noAlternateFinalReserveDuration = d }
+            case "ContingencySavingsAdditionalFuel":
+                if isWeight { flightPlan.fuelHeader?.contingencySavingsAdditionalFuel = w }
+                else if isDuration { flightPlan.fuelHeader?.contingencySavingsAdditionalDuration = d }
+            case "CaptainProtectedExtraFuel":
+                if isWeight { flightPlan.fuelHeader?.captainProtectedExtraFuel = w }
+                else if isDuration { flightPlan.fuelHeader?.captainProtectedExtraDuration = d }
+            case "CaptainUnprotectedExtraFuel":
+                if isWeight { flightPlan.fuelHeader?.captainUnprotectedExtraFuel = w }
+                else if isDuration { flightPlan.fuelHeader?.captainUnprotectedExtraDuration = d }
+            default:
+                break
+            }
+            return
+        }
+
+        // BlockFuel/FuelOnBoardAfterRefueling (Item 4)
+        if currentFuelContext == "BlockFuel" && p == "FuelOnBoardAfterRefueling" {
+            flightPlan.fuelHeader?.fuelOnBoardAfterRefueling = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            return
+        }
+
         // MinimumBlockFuel handling
         if inMinimumBlockFuel {
             if p == "EstimatedWeight" {
@@ -1532,13 +1663,20 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
                 flightPlan.fuelHeader?.arrivalFuel = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             }
         default:
-            // MaximumFuelWeight inside PossibleExtraFuel
-            if p == "Weight" && gp == "MaximumFuelWeight" {
-                flightPlan.fuelHeader?.maxExtraFuelWeight = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            // PossibleExtraFuel/PossibleExtra (a Weight) -> loadable extra fuel.
+            if p == "PossibleExtra" && gp == "PossibleExtraFuel" {
                 flightPlan.fuelHeader?.possibleExtraFuelWeight = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             }
+            // PossibleExtraFuel/MaximumFuelWeight/Weight (tank capacity) -> maxExtraFuelWeight.
+            else if p == "Weight" && gp == "MaximumFuelWeight" {
+                flightPlan.fuelHeader?.maxExtraFuelWeight = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            }
+            // PossibleExtraFuel/MaximumFuelWeight/Density.
+            else if p == "Density" && gp == "MaximumFuelWeight" {
+                flightPlan.fuelHeader?.maximumFuelDensity = ARINCDensity(value: text.toDouble ?? 0, unit: unit)
+            }
             // TankVolume inside PossibleExtraFuel
-            if p == "TankVolume" {
+            else if p == "TankVolume" {
                 flightPlan.fuelHeader?.tankVolume = ARINCVolume(value: text.toDouble ?? 0, unit: unit)
             }
         }
@@ -1595,12 +1733,16 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
         case "DryOperatingWeight":
             if p == "EstimatedWeight" {
                 flightPlan.weightHeader?.dryOperatingWeight.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            } else if p == "ActualWeight" {
+                flightPlan.weightHeader?.dryOperatingWeight.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if p == "BasicWeight" {
                 flightPlan.weightHeader?.basicWeight = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             }
         case "Load":
             if p == "EstimatedWeight" && gp == "Load" {
                 flightPlan.weightHeader?.load.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            } else if p == "ActualWeight" && gp == "Load" {
+                flightPlan.weightHeader?.load.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if gp == "CargoLoad" {
                 flightPlan.weightHeader?.cargoLoad = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if gp == "PaxLoad" {
@@ -1609,6 +1751,8 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
         case "ZeroFuelWeight":
             if p == "EstimatedWeight" {
                 flightPlan.weightHeader?.zeroFuelWeight.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            } else if p == "ActualWeight" {
+                flightPlan.weightHeader?.zeroFuelWeight.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if p == "OperationalLimit" {
                 flightPlan.weightHeader?.zfwOperationalLimit = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if p == "StructuralLimit" {
@@ -1617,12 +1761,16 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
         case "TaxiWeight":
             if p == "EstimatedWeight" {
                 flightPlan.weightHeader?.taxiWeight.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            } else if p == "ActualWeight" {
+                flightPlan.weightHeader?.taxiWeight.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if p == "StructuralLimit" {
                 flightPlan.weightHeader?.taxiWeightStructuralLimit = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             }
         case "TakeoffWeight":
             if p == "EstimatedWeight" {
                 flightPlan.weightHeader?.takeoffWeight.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            } else if p == "ActualWeight" {
+                flightPlan.weightHeader?.takeoffWeight.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if p == "OperationalLimit" {
                 flightPlan.weightHeader?.towOperationalLimit = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if p == "StructuralLimit" {
@@ -1631,6 +1779,8 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
         case "LandingWeight":
             if p == "EstimatedWeight" {
                 flightPlan.weightHeader?.landingWeight.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+            } else if p == "ActualWeight" {
+                flightPlan.weightHeader?.landingWeight.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if p == "OperationalLimit" {
                 flightPlan.weightHeader?.ldwOperationalLimit = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
             } else if p == "StructuralLimit" {
@@ -1697,18 +1847,30 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
             wp.tropopause = ARINCAltitude(value: text.toDouble ?? 0, unit: unit)
         case "EstimatedAltitude":
             wp.altitude.estimated = ARINCAltitude(value: text.toDouble ?? 0, unit: unit)
+        case "ActualAltitude":
+            // <ActualAltitude> parallels <EstimatedAltitude> within Altitude (AltitudeBasicType).
+            wp.altitude.actual = ARINCAltitude(value: text.toDouble ?? 0, unit: unit)
         case "MinimumSafeAltitude":
             wp.minimumSafeAltitude = ARINCAltitude(value: text.toDouble ?? 0, unit: unit)
 
         // Speeds
         case "EstimatedSpeed" where gp == "TrueAirSpeed":
             wp.trueAirSpeed.estimated = ARINCSpeed(value: text.toDouble ?? 0, unit: unit)
+        case "ActualSpeed" where gp == "TrueAirSpeed":
+            wp.trueAirSpeed.actual = ARINCSpeed(value: text.toDouble ?? 0, unit: unit)
         case "EstimatedSpeed" where gp == "IndicatedAirSpeed":
             wp.indicatedAirSpeed.estimated = ARINCSpeed(value: text.toDouble ?? 0, unit: unit)
+        case "ActualSpeed" where gp == "IndicatedAirSpeed":
+            wp.indicatedAirSpeed.actual = ARINCSpeed(value: text.toDouble ?? 0, unit: unit)
         case "EstimatedSpeed" where gp == "GroundSpeed":
             wp.groundSpeed.estimated = ARINCSpeed(value: text.toDouble ?? 0, unit: unit)
+        case "ActualSpeed" where gp == "GroundSpeed":
+            wp.groundSpeed.actual = ARINCSpeed(value: text.toDouble ?? 0, unit: unit)
         case "EstimatedMachNumber":
             wp.mach.estimated = ARINCMachNumber(value: text.toDouble ?? 0)
+        case "ActualMachNumber":
+            // <ActualMachNumber> parallels <EstimatedMachNumber> (MachNumberBasicType).
+            wp.mach.actual = ARINCMachNumber(value: text.toDouble ?? 0)
 
         // Tracks
         case "OutboundTrack":
@@ -1755,16 +1917,55 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
             if text.hasPrefix("PT") {
                 wp.remainingFlightTime = ARINC633Duration(from: text)
             }
+        // <ActualTime> parallels <EstimatedTime> within each DurationBasicType wrapper.
+        case "ActualTime" where gp == "TimeFromPreviousWaypoint":
+            if text.hasPrefix("PT") {
+                wp.timeFromPrevious = ARINC633Duration(from: text)
+            }
+        case "ActualTime" where gp == "TimeOverWaypoint":
+            wp.timeOverWaypoint = text.trimmedOrNil
+        case "ActualTime" where gp == "CumulatedFlightTime":
+            if text.hasPrefix("PT") {
+                wp.cumulatedFlightTime = ARINC633Duration(from: text)
+            }
+        case "ActualTime" where gp == "RemainingFlightTime":
+            if text.hasPrefix("PT") {
+                wp.remainingFlightTime = ARINC633Duration(from: text)
+            }
 
         // Fuel
         case "EstimatedWeight" where gp == "BurnOff":
             wp.burnOff.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "ActualWeight" where gp == "BurnOff":
+            wp.burnOff.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
         case "EstimatedWeight" where gp == "CumulatedBurnOff":
             wp.cumulatedBurnOff.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "ActualWeight" where gp == "CumulatedBurnOff":
+            wp.cumulatedBurnOff.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
         case "EstimatedWeight" where gp == "FuelOnBoard":
             wp.fuelOnBoard.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "ActualWeight" where gp == "FuelOnBoard":
+            wp.fuelOnBoard.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
         case "MinimumFuelOnBoard":
             wp.minimumFuel = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+
+        // Per-waypoint extras (Item 6)
+        case "EstimatedWeight" where gp == "AircraftWeight":
+            wp.aircraftWeight.estimated = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "ActualWeight" where gp == "AircraftWeight":
+            wp.aircraftWeight.actual = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "CalculatedFuelOnBoard":
+            wp.calculatedFuelOnBoard = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "FuelOnBoardDifference":
+            wp.fuelOnBoardDifference = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "CumulatedBurnOffDifference":
+            wp.cumulatedBurnOffDifference = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "LeakDetection":
+            wp.leakDetection = ARINCWeight(value: text.toDouble ?? 0, unit: unit)
+        case "SegmentCrossWindComponent":
+            wp.segmentCrossWindComponent = ARINCSpeed(value: text.toDouble ?? 0, unit: unit)
+        case "SegmentVerticalWindChange" where gp == "SegmentShearRate":
+            wp.segmentShearRate = ARINCSpeed(value: text.toDouble ?? 0, unit: unit)
 
         default:
             break
@@ -1956,6 +2157,15 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
     // MARK: - Airport ICAO Code Handling
 
     private func handleAirportICAOCode(_ text: String) {
+        // ContingencyFuel/ContingencyPolicy/EnrouteAlternateAirport ICAO (Item 7).
+        if currentSection == .fuelHeader && stackContains("EnrouteAlternateAirport") {
+            flightPlan.fuelHeader?.contingencyEnrouteAlternateAirportICAO = text
+            return
+        }
+        if inSummaryAdequateAirports && currentSummaryAdequateAirport != nil {
+            currentSummaryAdequateAirport?.airportICAO = text
+            return
+        }
         if inAdequateAirport {
             currentAdequateAirport?.airportICAO = text
             return
@@ -2025,6 +2235,10 @@ final class FlightPlanParser: SAXParserEngine, @unchecked Sendable {
     // MARK: - Airport IATA Code Handling
 
     private func handleAirportIATACode(_ text: String) {
+        if inSummaryAdequateAirports && currentSummaryAdequateAirport != nil {
+            currentSummaryAdequateAirport?.airportIATA = text
+            return
+        }
         if inAdequateAirport {
             currentAdequateAirport?.airportIATA = text
             return
