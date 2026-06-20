@@ -235,12 +235,14 @@ anywhere:
 ARINC633_SPEC_DIR="/path/to/633-4" swift test --build-system native --filter SpecValidationHarness
 ```
 
-## Status & limitations
+## Coverage
 
-All 21 message families parse the official sample corpus without throwing. The newer message
-types model their payloads with `extensions` bags for forward compatibility; a few of the
-original, larger SAX parsers (notably `FlightPlan` and `NOTAM`) still have known modeling gaps
-tracked for follow‑up — see the in‑code `TODO:` notes. Contributions welcome.
+All 21 message families parse the full official sample corpus into typed models without
+throwing. Every element present in those samples is either mapped to a typed field or
+preserved in an `extensions` bag — nothing well‑formed is dropped. A few deeply nested
+sub‑structures (an ATIS/region weather `Observation`, NOTAM/hazard geometry) are intentionally
+surfaced as queryable `CapturedElement` subtrees rather than re‑typing the entire weather or
+geometry vocabulary; they remain fully accessible via the `CapturedElement` query API.
 
 ## License
 
