@@ -224,8 +224,8 @@ registrations/UUIDs).
 
 `SpecValidationHarness` parses **every** official sample in your licensed spec copy and reports,
 per file, whether it dispatched to a typed parser, whether it threw, and which elements were
-captured but not explicitly modeled (gap detection via the `extensions` bags). It **no‑ops when
-the spec folder is absent** and never embeds spec content.
+preserved in an `extensions` bag rather than mapped to a typed field. It **no‑ops when the spec
+folder is absent** and never embeds spec content.
 
 The copyrighted spec is kept **outside the repository** (so the repo holds only publishable
 content). The harness finds it automatically at `../ARINC633Kit-local/633-4 2`, or point it
