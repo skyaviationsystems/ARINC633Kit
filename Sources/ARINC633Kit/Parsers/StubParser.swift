@@ -43,6 +43,10 @@ final class StubParser: SAXParserEngine, @unchecked Sendable {
     private var arrivalIATA: String?
     private var aircraftRegistration = ""
     private var aircraftType: String?
+    private var aircraftSubType: String?
+    private var departureName: String?
+    private var arrivalName: String?
+    private var flightKeyIdentifier: String?
 
     // MARK: - Section Tracking
 
@@ -78,7 +82,7 @@ final class StubParser: SAXParserEngine, @unchecked Sendable {
             headerTimestamp = attributes["timestamp"] ?? ""
             headerMessageSequence = attributes["messageSequence"]
 
-        case "M633SupplementaryHeader":
+        case "M633SupplementaryHeader", "M633LTDSupplementaryHeader":
             inSupplementaryHeader = true
 
         case "Flight":
@@ -93,10 +97,19 @@ final class StubParser: SAXParserEngine, @unchecked Sendable {
                 flightNumberStr = attributes["number"] ?? ""
             }
 
+        case "DepartureAirport":
+            if inSupplementaryHeader { departureName = attributes["airportName"] }
+
+        case "ArrivalAirport":
+            if inSupplementaryHeader { arrivalName = attributes["airportName"] }
+
         case "Aircraft":
             if inSupplementaryHeader {
                 aircraftRegistration = attributes["aircraftRegistration"] ?? ""
             }
+
+        case "AircraftModel":
+            if inSupplementaryHeader { aircraftSubType = attributes["airlineSpecificSubType"] }
 
         default:
             break
@@ -114,23 +127,31 @@ final class StubParser: SAXParserEngine, @unchecked Sendable {
                 messageSequence: headerMessageSequence
             )
 
-        case "M633SupplementaryHeader":
+        case "M633SupplementaryHeader", "M633LTDSupplementaryHeader":
             inSupplementaryHeader = false
             let flight = ARINCHeaderFlight(
                 airlineCode: airlineCode,
                 flightNumber: flightNumberStr,
                 flightIdentifier: flightIdentifier,
                 commercialFlightNumber: commercialFlightNumber,
-                departure: ARINCHeaderAirport(icaoCode: departureICAO, iataCode: departureIATA),
-                arrival: ARINCHeaderAirport(icaoCode: arrivalICAO, iataCode: arrivalIATA),
+                departure: ARINCHeaderAirport(icaoCode: departureICAO, iataCode: departureIATA, name: departureName),
+                arrival: ARINCHeaderAirport(icaoCode: arrivalICAO, iataCode: arrivalIATA, name: arrivalName),
                 scheduledDepartureTime: scheduledDepartureTime,
                 flightOriginDate: flightOriginDate
             )
             let aircraft = ARINCHeaderAircraft(
                 registration: aircraftRegistration,
-                aircraftType: aircraftType
+                aircraftType: aircraftType,
+                engineType: aircraftSubType
             )
-            supplementaryHeader = SupplementaryHeader(flight: flight, aircraft: aircraft)
+            supplementaryHeader = SupplementaryHeader(
+                flight: flight,
+                aircraft: aircraft,
+                flightKeyIdentifier: flightKeyIdentifier
+            )
+
+        case "FlightKeyIdentifier":
+            if inSupplementaryHeader { flightKeyIdentifier = text.isEmpty ? nil : text }
 
         case "FlightIdentifier":
             if inSupplementaryHeader { flightIdentifier = text.isEmpty ? nil : text }

@@ -1,10 +1,20 @@
 // AdditionalRemarks.swift
-// ARINC633Kit
+// ARINC633KitSUPP
 //
-// Structured model for SUPP XML AdditionalRemarks data.
+// Structured model for Lido (vendor) SUPP XML AdditionalRemarks data.
 // Contains crew qualifications, CDU preflight, redispatch, permits, and more.
+//
+// NOTE: AdditionalRemarks is a Lido/vendor SUPP extension, NOT part of ARINC 633-4
+// core. It lives in the optional `ARINC633KitSUPP` module and surfaces through the
+// core kit via the custom-handler API as `ARINC633Message.custom(...)`.
 
 import Foundation
+import ARINC633Kit
+
+extension AdditionalRemarks: ARINC633CustomMessage {
+    /// Root element this vendor message is parsed from.
+    public var rootElement: String { "AdditionalRemarks" }
+}
 
 /// Parsed AdditionalRemarks from SUPP XML files.
 ///

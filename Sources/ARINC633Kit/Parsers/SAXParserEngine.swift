@@ -48,21 +48,21 @@ open class SAXParserEngine: NSObject, XMLParserDelegate, @unchecked Sendable {
 
     // MARK: - XMLParserDelegate
 
-    public func parser(_ parser: XMLParser, didStartElement elementName: String,
-                       namespaceURI: String?, qualifiedName: String?,
-                       attributes attributeDict: [String: String] = [:]) {
+    open func parser(_ parser: XMLParser, didStartElement elementName: String,
+                     namespaceURI: String?, qualifiedName: String?,
+                     attributes attributeDict: [String: String] = [:]) {
         elementStack.append(elementName)
         characterBuffer = ""
         currentAttributes = attributeDict
         handleStartElement(elementName, attributes: attributeDict)
     }
 
-    public func parser(_ parser: XMLParser, foundCharacters string: String) {
+    open func parser(_ parser: XMLParser, foundCharacters string: String) {
         characterBuffer += string
     }
 
-    public func parser(_ parser: XMLParser, didEndElement elementName: String,
-                       namespaceURI: String?, qualifiedName: String?) {
+    open func parser(_ parser: XMLParser, didEndElement elementName: String,
+                     namespaceURI: String?, qualifiedName: String?) {
         let text = characterBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
         handleEndElement(elementName, text: text)
         if let last = elementStack.last, last == elementName {

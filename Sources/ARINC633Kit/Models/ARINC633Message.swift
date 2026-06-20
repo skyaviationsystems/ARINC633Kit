@@ -6,13 +6,20 @@
 
 import Foundation
 
-/// All ARINC 633-4 message types that can be parsed.
+/// All ARINC 633-4 message types that can be parsed, plus two open-ended cases.
 ///
-/// FlightPlan, LoadAndTrimData, AirportWeather, CrewList, and EFF include fully parsed associated data.
-/// Remaining types carry header information via StubParser with rawContent for future full parsing.
+/// Each ARINC 633-4 message type maps to one case carrying its fully-typed model.
+/// Two cases keep the kit open:
+/// - `.captured` — an unregistered root element preserved as a `CapturedElement` tree
+///   (nothing is ever dropped).
+/// - `.custom` — a payload produced by an integrator-registered handler (see
+///   `ARINC633CustomMessage` and `ARINC633MessageRegistry`). The optional
+///   `ARINC633KitSUPP` module uses this for Lido `AdditionalRemarks`.
+///
+/// Note: `AdditionalRemarks` is intentionally **not** a core case — it is a Lido/vendor
+/// SUPP extension delivered via the `.custom` path by `ARINC633KitSUPP`.
 public enum ARINC633Message: Sendable {
     case flightPlan(FlightPlan)
-    case additionalRemarks(AdditionalRemarks)
     case loadAndTrimData(LoadAndTrimData)
     case airportWeather(AirportWeather)
     case crewList(CrewList)
@@ -33,7 +40,12 @@ public enum ARINC633Message: Sendable {
     case upperAirData(StubMessage)
     case airportData(StubMessage)
     case generalError(StubMessage)
-    case unknown(String)
+
+    /// An unregistered root element, preserved verbatim as a structured tree.
+    case captured(CapturedElement)
+
+    /// A payload from an integrator-registered custom handler.
+    case custom(any ARINC633CustomMessage)
 }
 
 /// Generic stub message for types without dedicated model structs.

@@ -1,17 +1,18 @@
 // AdditionalRemarksParser.swift
-// ARINC633Kit
+// ARINC633KitSUPP
 //
-// SAX parser for SUPP XML files with AdditionalRemarks root element.
+// SAX parser for Lido (vendor) SUPP XML files with AdditionalRemarks root element.
 // Extracts crew qualifications, CDU preflight, redispatch, permits, CAT approaches.
 
 import Foundation
+import ARINC633Kit
 
-/// SAX parser for AdditionalRemarks root element (SUPP XML files).
+/// SAX parser for AdditionalRemarks root element (Lido SUPP XML files).
 ///
 /// SUPP XMLs contain `<AdditionalRemarkDetails>` with `<Remark>` elements
 /// that use `RemarkType` and `Title` attributes to identify section content.
 /// Text content is free-form plain text parsed into structured models.
-final class AdditionalRemarksParser: SAXParserEngine, @unchecked Sendable {
+public final class AdditionalRemarksParser: SAXParserEngine, @unchecked Sendable {
 
     // MARK: - Parsed Result
 
@@ -27,7 +28,9 @@ final class AdditionalRemarksParser: SAXParserEngine, @unchecked Sendable {
 
     // MARK: - Public API
 
-    func parse(data: Data) throws -> AdditionalRemarks {
+    public override init() { super.init() }
+
+    public func parse(data: Data) throws -> AdditionalRemarks {
         result = AdditionalRemarks()
         try run(data: data)
         return result
@@ -35,7 +38,7 @@ final class AdditionalRemarksParser: SAXParserEngine, @unchecked Sendable {
 
     // MARK: - SAXParserEngine Overrides
 
-    override func handleStartElement(_ elementName: String, attributes: [String: String]) {
+    public override func handleStartElement(_ elementName: String, attributes: [String: String]) {
         switch elementName {
         case "AdditionalRemarkDetails":
             inAdditionalRemarkDetails = true
@@ -51,7 +54,7 @@ final class AdditionalRemarksParser: SAXParserEngine, @unchecked Sendable {
         }
     }
 
-    override func handleEndElement(_ elementName: String, text: String) {
+    public override func handleEndElement(_ elementName: String, text: String) {
         switch elementName {
         case "Remark" where inRemark:
             let rawText = remarkTextBuffer.isEmpty ? characterBuffer : remarkTextBuffer

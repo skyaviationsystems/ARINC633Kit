@@ -10,6 +10,9 @@ import Foundation
 
 /// De-Icing message (de-icing order, report, status, etc.).
 public struct DeIcingMessage: Sendable, Equatable {
+    /// Root elements that map to a De-Icing message (per DEICING.xsd).
+    public static let rootElements = ["DORACK", "DORIND", "DORSUB", "DPRREP", "DRCACK", "DRCSUB"]
+
     /// Standard ARINC 633 header.
     public let header: ARINC633Header
 

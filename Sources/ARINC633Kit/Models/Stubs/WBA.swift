@@ -9,6 +9,9 @@ import Foundation
 
 /// Weight & Balance Amendment message.
 public struct WBAMessage: Sendable, Equatable {
+    /// Root elements that map to a WBA message (per WBA.xsd / WBAcommon.xsd).
+    public static let rootElements = ["WIFSUB", "WIISUB", "WIMSUB", "WIRREP"]
+
     /// Standard ARINC 633 header.
     public let header: ARINC633Header
 

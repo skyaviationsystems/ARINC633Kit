@@ -11,6 +11,13 @@ import Foundation
 
 /// FUEL-related message (refueling, fuel status, CG targeting, etc.).
 public struct FUELMessage: Sendable, Equatable {
+    /// Root elements that map to a FUEL message (per REFUELING.xsd / CGTARGETING.xsd).
+    public static let rootElements = [
+        "FCAIND", "FDAACK", "FDACOM", "FDASUB", "FENIND", "FERIND",
+        "FORACK", "FORSUB", "FPRREP", "FRCACK", "FRCSUB", "FSTREP",
+        "FSTREQ", "FTBIND", "FTEIND", "FTIIND"
+    ]
+
     /// Standard ARINC 633 header.
     public let header: ARINC633Header
 

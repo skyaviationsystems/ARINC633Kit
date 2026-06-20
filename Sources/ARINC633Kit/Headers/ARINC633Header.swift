@@ -28,7 +28,8 @@ public struct ARINC633Header: Sendable, Equatable {
 
 // MARK: - Supplementary Header
 
-/// Supplementary header providing flight and aircraft context from `<M633SupplementaryHeader>`.
+/// Supplementary header providing flight and aircraft context from
+/// `<M633SupplementaryHeader>` (or the LTD variant `<M633LTDSupplementaryHeader>`).
 public struct SupplementaryHeader: Sendable, Equatable {
     /// Flight identification and route.
     public let flight: ARINCHeaderFlight
@@ -36,10 +37,18 @@ public struct SupplementaryHeader: Sendable, Equatable {
     /// Aircraft identification.
     public let aircraft: ARINCHeaderAircraft
 
+    /// Optional FlightKeys key — `<FlightKeyIdentifier>` UUID, when present.
+    ///
+    /// Per m633headers.xsd this is an optional child of the supplementary header;
+    /// it correlates the message with a FlightKeys flight record. Nil when absent.
+    public let flightKeyIdentifier: String?
+
     public init(flight: ARINCHeaderFlight = ARINCHeaderFlight(),
-                aircraft: ARINCHeaderAircraft = ARINCHeaderAircraft()) {
+                aircraft: ARINCHeaderAircraft = ARINCHeaderAircraft(),
+                flightKeyIdentifier: String? = nil) {
         self.flight = flight
         self.aircraft = aircraft
+        self.flightKeyIdentifier = flightKeyIdentifier
     }
 }
 
