@@ -204,18 +204,22 @@ registrations/UUIDs).
 ### Local‑only spec validation harness
 
 `Tests/ARINC633KitTests/SpecValidationHarness.swift` parses **every** official sample in a
-local, gitignored spec folder and reports, per file, whether it dispatched to a typed
-parser, whether it threw, and which elements were captured but not explicitly modeled
-(gap detection via the `extensions` bags). It **no‑ops when the spec folder is absent**, so
-it is safe to keep committed and never embeds spec content. Point it at your licensed copy:
+local spec folder and reports, per file, whether it dispatched to a typed parser, whether
+it threw, and which elements were captured but not explicitly modeled (gap detection via
+the `extensions` bags). It **no‑ops when the spec folder is absent**, so it is safe to keep
+committed and never embeds spec content.
+
+The copyrighted spec lives **outside the repository** in a sibling `ARINC633Kit-local/`
+folder (so the repo contains only publishable content). The harness finds it automatically
+at `../ARINC633Kit-local/633-4 2`, or point it anywhere with an environment variable:
 
 ```bash
 ARINC633_SPEC_DIR="/path/to/633-4" swift test --build-system native --filter SpecValidationHarness
 ```
 
-or place the spec at `<package>/633-4 2` (gitignored by default).
-
 ## License
 
-See [`LICENSE`](LICENSE). _(A library license — MIT or Apache‑2.0 — should be chosen before
-publication; the current file is a clearly‑marked placeholder.)_
+Licensed under the **Apache License, Version 2.0** — see [`LICENSE`](LICENSE) and
+[`NOTICE`](NOTICE). This license covers the library code only; it grants no rights to the
+ARINC Specification 633 itself, which is copyrighted by AEEC / SAE‑ITC and is not
+redistributed by this project.

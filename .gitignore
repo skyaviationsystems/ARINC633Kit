@@ -15,8 +15,12 @@ DerivedData/
 # ---------------------------------------------------------------------------
 # ARINC 633-4 specification material — COPYRIGHTED by AEEC / SAE-ITC.
 # NEVER commit any spec content (XSDs, PDF, official sample XML).
-# These local folder names must remain ignored.
+#
+# The spec now lives OUTSIDE this repo in a sibling `ARINC633Kit-local/` folder.
+# These ignore rules remain as a belt-and-suspenders safety net in case any spec
+# material is ever placed inside the repo directory.
 # ---------------------------------------------------------------------------
 633-4/
 633-4*/
+ARINC633Kit-local/
 *.pdf

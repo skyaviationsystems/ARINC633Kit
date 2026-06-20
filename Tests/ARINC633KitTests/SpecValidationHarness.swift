@@ -22,18 +22,31 @@ import ARINC633KitSUPP
 @Suite("Spec validation (local-only)")
 struct SpecValidationHarness {
 
-    /// Resolve the local spec directory, or nil if unavailable.
+    /// Resolve the local (gitignored, out-of-repo) spec directory, or nil if unavailable.
+    ///
+    /// Resolution order:
+    ///   1. `ARINC633_SPEC_DIR` environment variable (explicit override).
+    ///   2. A sibling `ARINC633Kit-local/633-4 2` (or `…/633-4`) folder next to the repo —
+    ///      the recommended layout that keeps copyrighted spec material out of the repo.
+    ///   3. A legacy in-repo `633-4 2` folder (back-compat), walking up a few levels.
     private static func specDir() -> URL? {
         let fm = FileManager.default
+
         if let env = ProcessInfo.processInfo.environment["ARINC633_SPEC_DIR"],
            fm.fileExists(atPath: env) {
             return URL(fileURLWithPath: env, isDirectory: true)
         }
-        // Walk up from this source file to find a sibling "633-4 2" folder.
+
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         for _ in 0..<6 {
-            let candidate = dir.appendingPathComponent("633-4 2", isDirectory: true)
-            if fm.fileExists(atPath: candidate.path) { return candidate }
+            let candidates = [
+                dir.appendingPathComponent("ARINC633Kit-local/633-4 2", isDirectory: true),
+                dir.appendingPathComponent("ARINC633Kit-local/633-4", isDirectory: true),
+                dir.appendingPathComponent("633-4 2", isDirectory: true),
+            ]
+            for candidate in candidates where fm.fileExists(atPath: candidate.path) {
+                return candidate
+            }
             dir = dir.deletingLastPathComponent()
         }
         return nil

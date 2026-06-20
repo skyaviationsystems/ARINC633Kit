@@ -1,0 +1,13 @@
+ARINC633Kit
+Copyright 2026 Timothy Murray
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This package is an original, clean-room Swift implementation that reads and writes
+ARINC 633-4–conformant XML. It does NOT include, redistribute, or reproduce ARINC
+Specification 633 or its XSD schemas, which are copyrighted by AEEC / SAE-ITC. Users are
+assumed to hold their own license to the specification. All bundled test fixtures are
+synthetic and contain no real operational or crew data.
+
+This product depends on ZIPFoundation (https://github.com/weichsel/ZIPFoundation),
+licensed under the MIT License, used only for the double-zipped EFF container.
