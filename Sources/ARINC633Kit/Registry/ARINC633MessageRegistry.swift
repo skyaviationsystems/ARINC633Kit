@@ -92,24 +92,15 @@ public struct ARINC633MessageRegistry: Sendable {
         h["AirspaceData"] = { .airspaceData(try AirspaceDataParser().parse(data: $0)) }
 
         // -- WBA family (shared payload, distinguished by root) --
-        let wba: Handler = { data in
-            let (header, supp, _, root) = try StubParser().parse(data: data)
-            return .wba(WBAMessage(header: header, supplementaryHeader: supp, messageSubtype: root))
-        }
+        let wba: Handler = { .wba(try WBAParser().parse(data: $0)) }
         for root in WBAMessage.rootElements { h[root] = wba }
 
         // -- FUEL family --
-        let fuel: Handler = { data in
-            let (header, supp, _, root) = try StubParser().parse(data: data)
-            return .fuel(FUELMessage(header: header, supplementaryHeader: supp, messageSubtype: root))
-        }
+        let fuel: Handler = { .fuel(try FUELParser().parse(data: $0)) }
         for root in FUELMessage.rootElements { h[root] = fuel }
 
         // -- De-Icing family --
-        let deicing: Handler = { data in
-            let (header, supp, _, root) = try StubParser().parse(data: data)
-            return .deIcing(DeIcingMessage(header: header, supplementaryHeader: supp, messageSubtype: root))
-        }
+        let deicing: Handler = { .deIcing(try DeIcingParser().parse(data: $0)) }
         for root in DeIcingMessage.rootElements { h[root] = deicing }
 
         // -- Promoted CommonData / GeneralError parsers --

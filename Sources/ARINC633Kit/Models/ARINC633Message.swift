@@ -48,32 +48,6 @@ public enum ARINC633Message: Sendable {
     case custom(any ARINC633CustomMessage)
 }
 
-/// Generic stub message for types without dedicated model structs.
-/// Carries header information extracted by StubParser.
-public struct StubMessage: Sendable, Equatable {
-    /// Standard ARINC 633 header.
-    public let header: ARINC633Header
-
-    /// Supplementary header with flight/aircraft context.
-    public let supplementaryHeader: SupplementaryHeader
-
-    /// Root element name identifying the message subtype.
-    public let rootElement: String
-
-    /// Root element attributes.
-    public let rootAttributes: [String: String]
-
-    public init(header: ARINC633Header = ARINC633Header(),
-                supplementaryHeader: SupplementaryHeader = SupplementaryHeader(),
-                rootElement: String = "",
-                rootAttributes: [String: String] = [:]) {
-        self.header = header
-        self.supplementaryHeader = supplementaryHeader
-        self.rootElement = rootElement
-        self.rootAttributes = rootAttributes
-    }
-}
-
 /// Errors that can occur during ARINC 633 parsing.
 public enum ARINC633ParseError: Error, Sendable {
     /// The document is empty or has no root element.

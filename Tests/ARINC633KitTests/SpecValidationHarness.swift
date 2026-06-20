@@ -126,11 +126,29 @@ struct SpecValidationHarness {
         }
     }
 
-    /// Elements captured into an "extensions" bag by a typed model (i.e. gaps).
-    /// Models that expose `extensions: [CapturedElement]` contribute their names here.
+    /// Elements captured into any `extensions: [CapturedElement]` bag anywhere in the
+    /// parsed model tree (i.e. content present in the XML but not explicitly modeled).
+    ///
+    /// Uses reflection so no per-model wiring is needed: it walks the message value and
+    /// collects the `.name` of every `CapturedElement` sitting in an `extensions` bag.
     private static func unmodeledElements(in message: ARINC633Message) -> Set<String> {
-        // Extension bags are surfaced per-model as they are added during promotion.
-        // Until a model exposes one, this returns empty (no false positives).
-        Set()
+        var names: Set<String> = []
+        // The enum's single associated value is the model.
+        for child in Mirror(reflecting: message).children {
+            collectExtensionNames(child.value, into: &names, depth: 0)
+        }
+        return names
+    }
+
+    private static func collectExtensionNames(_ value: Any, into names: inout Set<String>, depth: Int) {
+        guard depth < 8 else { return }
+        if let captured = value as? CapturedElement { names.insert(captured.name); return }
+        if let bag = value as? [CapturedElement] { bag.forEach { names.insert($0.name) }; return }
+        let mirror = Mirror(reflecting: value)
+        // Avoid descending into the envelope/header value types (no extensions there).
+        for child in mirror.children {
+            if child.label == "header" || child.label == "supplementaryHeader" { continue }
+            collectExtensionNames(child.value, into: &names, depth: depth + 1)
+        }
     }
 }
