@@ -82,11 +82,10 @@ public struct ARINC633MessageRegistry: Sendable {
         h["EFUSUB"] = effHandler
         h["EFDREP"] = effHandler
 
+        // -- Fully typed parsers --
+        h["ATIS"] = { .atis(try ATISParser().parse(data: $0)) }
+
         // -- Header-only stub handlers (promoted to full parsers incrementally) --
-        h["ATIS"] = { data in
-            let (header, supp, _, _) = try StubParser().parse(data: data)
-            return .atis(ATISMessage(header: header, supplementaryHeader: supp))
-        }
         h["RAIMReport"] = { data in
             let (header, supp, _, _) = try StubParser().parse(data: data)
             return .raimReport(RAIMReport(header: header, supplementaryHeader: supp))
