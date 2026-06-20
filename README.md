@@ -1,29 +1,52 @@
 # ARINC633Kit
 
-A native Swift 6 library for reading **ARINC 633‑4** electronic flight‑folder / operational
-flight data — flight plans, weather, NOTAMs, load & trim, crew, fuel, de‑icing, and the
-rest of the message family — into strongly‑typed, `Sendable` value models. It is a
-streaming (SAX‑based) parser with an open dispatch registry, a never‑drop capture
-fallback, and a clean extension point for airline/vendor message types.
+[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/Platforms-iOS%2018%20%7C%20macOS%2015-0A84FF)](https://developer.apple.com)
+[![SwiftPM](https://img.shields.io/badge/SwiftPM-compatible-4BC51D)](https://www.swift.org/package-manager/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
 
-## Independent‑implementation notice
+A native Swift 6 library that parses **ARINC 633‑4** electronic flight‑folder / operational
+flight data — flight plans, weather, NOTAMs, load & trim, crew, fuel, de‑icing, and the rest
+of the message family — into strongly‑typed, `Sendable` value models.
 
-> This package is an original, clean‑room Swift implementation that reads and writes
-> ARINC 633‑4–conformant XML. It does not include, redistribute, or reproduce ARINC
-> Specification 633 or its XSD schemas, which are copyrighted by AEEC / SAE‑ITC. Users
-> are assumed to hold their own license to the specification. All bundled test fixtures
-> are synthetic and contain no real operational or crew data.
+It’s a streaming (SAX‑based) parser with an open dispatch registry, a never‑drop capture
+fallback, and a clean extension point for airline and vendor message types.
+
+```swift
+let message = try ARINC633Parser().parse(data: xml)
+
+if case let .flightPlan(plan) = message {
+    print(plan.fuelHeader?.tripFuel ?? "—")   // typed, unit-preserving
+}
+```
+
+## Features
+
+- 🧩 **Complete 633‑4 coverage** — every official root element parses into a dedicated typed model (45+ roots across 21 message families).
+- 🛟 **Nothing is ever dropped** — unknown roots become `.captured` trees; unrecognized children land in per‑model `extensions` bags.
+- 🔌 **Open & extensible** — register airline/vendor message types through a value‑semantic registry; they arrive as `.custom`.
+- 📐 **Units preserved** — fuel, weights, distances, and altitudes keep their units via Foundation value types (`ARINCWeight`, `ARINCAltitude`, …).
+- ⚡️ **Streaming SAX** — handles large (1 MB+, hundreds‑of‑NOTAMs) briefings efficiently.
+- 🔒 **Swift 6 strict concurrency** — everything is `Sendable`; models are value types.
+- ✅ **Synthetic, exhaustive tests** — plus a local‑only harness that validates against the official sample corpus.
+
+> [!IMPORTANT]
+> **Independent, clean‑room implementation.** This package reads and writes ARINC 633‑4–conformant
+> XML. It does **not** include, redistribute, or reproduce ARINC Specification 633 or its XSD
+> schemas, which are copyrighted by AEEC / SAE‑ITC. Users are assumed to hold their own license to
+> the specification. All bundled test fixtures are synthetic and contain no real operational or crew data.
 
 ## Requirements
 
-- Swift 6.0+
-- iOS 18+ / macOS 15+
-- [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) (used only for the
-  double‑zipped EFF container)
+| | |
+|---|---|
+| Swift | 6.0+ |
+| Platforms | iOS 18+ · macOS 15+ |
+| Dependencies | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) (EFF container only) |
 
 ## Installation
 
-Swift Package Manager:
+Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
@@ -38,6 +61,8 @@ targets: [
 ]
 ```
 
+Or, in Xcode: **File ▸ Add Package Dependencies…** and paste the repository URL.
+
 ## Quick start
 
 Parse any ARINC 633‑4 document and switch over the typed result:
@@ -51,69 +76,74 @@ let message = try ARINC633Parser().parse(data: data)
 switch message {
 case let .flightPlan(plan):
     print(plan.header.versionNumber, plan.fuelHeader?.tripFuel as Any)
-case let .loadAndTrimData(ltd):
-    print(ltd.header.timestamp)
+
 case let .notam(briefing):
-    print(briefing)
+    for notam in briefing.notams {
+        print(notam.subjects, notam.airports)
+    }
+
 case let .fuel(fuel):
     print("FUEL subtype:", fuel.messageSubtype ?? "?")
+
 case let .captured(root):
     // Unregistered root element — preserved verbatim, never dropped.
     print("captured <\(root.name)> with \(root.children.count) children")
+
 case let .custom(custom):
     print("custom message:", custom.rootElement)
+
 default:
     break
 }
 ```
 
-The supplementary header is extracted uniformly for every message type — including the
-optional `FlightKeyIdentifier` UUID and the LTD header variants
-(`M633LTDHeader` / `M633LTDSupplementaryHeader`) — and is available on each typed model
-(e.g. `plan.supplementaryHeader.flightKeyIdentifier`).
+The message envelope is extracted uniformly for every type — including the optional
+`FlightKeyIdentifier` UUID and the LTD header variants (`M633LTDHeader` /
+`M633LTDSupplementaryHeader`) — and is available on each typed model, e.g.
+`plan.supplementaryHeader.flightKeyIdentifier`.
 
 ## Supported message types
 
-Every official ARINC 633‑4 root element dispatches to a dedicated typed parser. Unknown
-roots are preserved as `.captured`; integrator types arrive as `.custom`.
+Every official ARINC 633‑4 root element dispatches to a dedicated typed parser. Unknown roots
+are preserved as `.captured`; integrator types arrive as `.custom`.
 
-| Message type            | Root element(s)                                   | Result case          | Coverage |
-|-------------------------|---------------------------------------------------|----------------------|----------|
-| Flight Plan             | `FlightPlan`                                      | `.flightPlan`        | typed    |
-| Load & Trim Data        | `LoadAndTrimData` (LTD header variants)           | `.loadAndTrimData`   | typed    |
-| Airport Weather         | `AirportWeather`                                  | `.airportWeather`    | typed    |
-| Crew List               | `CrewList`                                        | `.crewList`          | typed    |
-| Electronic Flight Folder| `EFUSUB`, `EFDREP`                                | `.eff`               | typed    |
-| NOTAM Briefing          | `NOTAMBriefing`                                   | `.notam`             | typed    |
-| ATC Flight Plan (ICAO)  | `FlightPlanAtcIcao`                               | `.atcFlightPlan`     | typed    |
-| ATIS                    | `ATIS`                                            | `.atis`              | typed    |
-| RAIM Report             | `RAIMReport`                                      | `.raimReport`        | typed    |
-| Pilot Reports           | `PIREPBriefing`                                   | `.pirepBriefing`     | typed    |
-| Hazard Briefing         | `HazardBriefing`                                  | `.hazardBriefing`    | typed    |
-| Organized Tracks        | `OrganizedTracks`                                 | `.organizedTracks`   | typed    |
-| Airspace Data           | `AirspaceData`                                    | `.airspaceData`      | typed    |
-| Passenger List          | `PaxList`                                         | `.paxList`           | typed    |
-| Region Weather          | `RegionWeather`, `RegionWeatherBriefing`          | `.regionWeather`     | typed    |
-| Upper Air Data          | `UpperAirData`                                    | `.upperAirData`      | typed    |
-| Airport Data            | `AirportData`                                     | `.airportData`       | typed    |
-| General Error           | `GERIND`                                          | `.generalError`      | typed    |
-| Weight & Balance Amend. | `WIFSUB`, `WIISUB`, `WIMSUB`, `WIRREP`            | `.wba`               | typed    |
-| Fuel                    | `FCAIND`,`FDAACK`,`FDACOM`,`FDASUB`,`FENIND`,`FERIND`,`FORACK`,`FORSUB`,`FPRREP`,`FRCACK`,`FRCSUB`,`FSTREP`,`FSTREQ`,`FTBIND`,`FTEIND`,`FTIIND` | `.fuel` | typed |
-| De‑Icing                | `DORACK`,`DORIND`,`DORSUB`,`DPRREP`,`DRCACK`,`DRCSUB` | `.deIcing`        | typed    |
-| _any other root_        | _(unregistered)_                                  | `.captured`          | captured |
-| _integrator types_      | _(registered via custom API)_                     | `.custom`            | custom   |
+| Message type             | Root element(s)                                   | Result case        |
+|--------------------------|---------------------------------------------------|--------------------|
+| Flight Plan              | `FlightPlan`                                      | `.flightPlan`      |
+| Load & Trim Data         | `LoadAndTrimData` (LTD header variants)           | `.loadAndTrimData` |
+| Airport Weather          | `AirportWeather`                                  | `.airportWeather`  |
+| Crew List                | `CrewList`                                        | `.crewList`        |
+| Electronic Flight Folder | `EFUSUB`, `EFDREP`                                | `.eff`             |
+| NOTAM Briefing           | `NOTAMBriefing`                                   | `.notam`           |
+| ATC Flight Plan (ICAO)   | `FlightPlanAtcIcao`                               | `.atcFlightPlan`   |
+| ATIS                     | `ATIS`                                            | `.atis`            |
+| RAIM Report              | `RAIMReport`                                      | `.raimReport`      |
+| Pilot Reports            | `PIREPBriefing`                                   | `.pirepBriefing`   |
+| Hazard Briefing          | `HazardBriefing`                                  | `.hazardBriefing`  |
+| Organized Tracks         | `OrganizedTracks`                                 | `.organizedTracks` |
+| Airspace Data            | `AirspaceData`                                    | `.airspaceData`    |
+| Passenger List           | `PaxList`                                         | `.paxList`         |
+| Region Weather           | `RegionWeather`, `RegionWeatherBriefing`          | `.regionWeather`   |
+| Upper Air Data           | `UpperAirData`                                    | `.upperAirData`    |
+| Airport Data             | `AirportData`                                     | `.airportData`     |
+| General Error            | `GERIND`                                          | `.generalError`    |
+| Weight & Balance Amend.  | `WIFSUB`, `WIISUB`, `WIMSUB`, `WIRREP`            | `.wba`             |
+| Fuel                     | `FCAIND`, `FDAACK`, `FDACOM`, `FDASUB`, `FENIND`, `FERIND`, `FORACK`, `FORSUB`, `FPRREP`, `FRCACK`, `FRCSUB`, `FSTREP`, `FSTREQ`, `FTBIND`, `FTEIND`, `FTIIND` | `.fuel` |
+| De‑Icing                 | `DORACK`, `DORIND`, `DORSUB`, `DPRREP`, `DRCACK`, `DRCSUB` | `.deIcing` |
+| _any other root_         | _(unregistered)_                                  | `.captured`        |
+| _integrator types_       | _(registered via custom API)_                     | `.custom`          |
 
 The family messages (WBA / FUEL / De‑Icing) share one payload model each and carry the
 concrete subtype in `messageSubtype` (the root element name).
 
-> **Safety‑relevant fields** — fuel, weights, CG, ETOPS, crew currency — preserve their
-> units via the Foundation value types (`ARINCWeight`, `ARINCDistance`, `ARINCAltitude`,
-> …) and are flagged in the in‑code documentation. Handle them with care.
+> [!NOTE]
+> **Safety‑relevant fields** — fuel, weights, CG, ETOPS, crew currency — preserve their units via
+> the Foundation value types and are flagged in the in‑code documentation. Handle them with care.
 
-## Extending: airline / vendor message types
+## Extending
 
-Dispatch is driven by a value‑semantic `ARINC633MessageRegistry`. Register a handler for
-your root element(s); it never disturbs the built‑ins:
+Dispatch is driven by a value‑semantic `ARINC633MessageRegistry`. Register a handler for your
+root element(s); it never disturbs the built‑ins.
 
 ```swift
 import ARINC633Kit
@@ -123,15 +153,11 @@ struct MyAirlineBriefing: ARINC633CustomMessage {
     var payload: String
 }
 
-final class MyAirlineParser {
-    func parse(data: Data) throws -> MyAirlineBriefing {
-        let root = try GenericElementParser().parse(data: data)   // schema-agnostic tree
-        return MyAirlineBriefing(payload: root.firstDescendant(named: "Payload")?.text ?? "")
-    }
-}
-
 let registry = ARINC633MessageRegistry.standard
-    .registering("MYAIRLINEROOT") { .custom(try MyAirlineParser().parse(data: $0)) }
+    .registering("MYAIRLINEROOT") { data in
+        let root = try GenericElementParser().parse(data: data)   // schema-agnostic tree
+        return .custom(MyAirlineBriefing(payload: root.firstDescendant(named: "Payload")?.text ?? ""))
+    }
 
 let message = try ARINC633Parser(registry: registry).parse(data: xml)
 if case let .custom(custom) = message, let mine = custom as? MyAirlineBriefing {
@@ -139,11 +165,10 @@ if case let .custom(custom) = message, let mine = custom as? MyAirlineBriefing {
 }
 ```
 
-### Handling custom fields inside a known message
+### Custom fields inside a known message
 
-Typed models carry an `extensions: [CapturedElement]` bag. Any child element a parser does
-not recognize (e.g. an airline customization inside an otherwise‑standard message) is
-preserved there instead of being dropped, and is queryable:
+Typed models carry an `extensions: [CapturedElement]` bag. Any child element a parser doesn’t
+recognize is preserved there and stays queryable instead of being dropped:
 
 ```swift
 if case let .atis(atis) = message {
@@ -155,8 +180,8 @@ if case let .atis(atis) = message {
 
 ### Lido SUPP (optional module)
 
-`AdditionalRemarks` is a Lido/vendor SUPP extension — **not** part of ARINC 633‑4 core. It
-lives in the optional `ARINC633KitSUPP` product and surfaces through the `.custom` path:
+`AdditionalRemarks` is a Lido/vendor SUPP extension — **not** part of ARINC 633‑4 core. It lives
+in the optional `ARINC633KitSUPP` product and surfaces through the `.custom` path:
 
 ```swift
 import ARINC633Kit
@@ -171,22 +196,15 @@ if case let .custom(custom) = try parser.parse(data: xml),
 
 ## Architecture
 
-- **`SAXParserEngine`** — base `XMLParserDelegate` with element‑stack tracking and
-  character buffering. Namespaces are processed; matching is on **local element names**.
-- **`HeaderAwareSAXParser`** — base that centralizes (and hardens) ARINC 633 envelope
-  parsing so payload parsers stay focused.
-- **`GenericElementParser` → `CapturedElement`** — a schema‑agnostic tree capture. Backs
-  both the `.captured` fallback (nothing is ever dropped) and the per‑model `extensions`
-  bags. Typed parsers are written as straightforward tree‑walks over it, with reusable
-  envelope/value helpers (`makeARINC633Header()`, `valueAndUnit()`, `altitude(of:)`, …).
-- **`ARINC633MessageRegistry`** — open, `Sendable`, value‑semantic root‑element → handler
-  dispatch. `.standard` registers all built‑ins; `.registering(_:_:)` adds custom types.
-- **`ARINC633Message`** — one case per message type, plus `.captured` and `.custom`.
-- **Foundation value types** — `ARINC633Duration`, `ARINCCoordinate`,
-  `ARINC633Measurement` (weight/distance/altitude/speed/temperature/…), `EstimatedActual`,
-  and the shared enums. Reused everywhere to preserve units and value semantics.
-- **EFF** — `ZIPFoundation` handles the double‑zipped Electronic Flight Folder container;
-  inner products are dispatched through the same registry.
+| Component | Role |
+|---|---|
+| `SAXParserEngine` | Base `XMLParserDelegate` with element‑stack tracking + character buffering. Namespaces processed; matching on **local element names**. |
+| `HeaderAwareSAXParser` | Centralizes (and hardens) ARINC 633 envelope parsing so payload parsers stay focused. |
+| `GenericElementParser` → `CapturedElement` | Schema‑agnostic tree capture. Backs the `.captured` fallback and the `extensions` bags. New typed parsers are written as tree‑walks over it, with reusable envelope/value helpers. |
+| `ARINC633MessageRegistry` | Open, `Sendable`, value‑semantic root‑element → handler dispatch. `.standard` registers all built‑ins; `.registering(_:_:)` adds custom types. |
+| `ARINC633Message` | One case per message type, plus `.captured` and `.custom`. |
+| Foundation value types | `ARINC633Duration`, `ARINCCoordinate`, `ARINC633Measurement` (weight / distance / altitude / speed / temperature / …), `EstimatedActual`, shared enums. Reused everywhere to preserve units. |
+| EFF container | `ZIPFoundation` unpacks the double‑zipped Electronic Flight Folder; inner products dispatch through the same registry. |
 
 ## Testing
 
@@ -194,32 +212,38 @@ if case let .custom(custom) = try parser.parse(data: xml),
 swift test --build-system native
 ```
 
-> `--build-system native` is recommended on macOS: the newer SwiftBuild system codesigns
-> the `.xctest` bundle and can fail on filesystem extended attributes (e.g. when the repo
-> lives under `~/Desktop`/iCloud). The native build system avoids that codesign step.
+> [!TIP]
+> Use `--build-system native` on macOS. The newer SwiftBuild system codesigns the `.xctest`
+> bundle and can fail on filesystem extended attributes (e.g. when the checkout lives under
+> `~/Desktop` or iCloud). The native build system skips that step.
 
 All committed fixtures are **synthetic** hand‑authored XML (fictional carrier, fake
 registrations/UUIDs).
 
 ### Local‑only spec validation harness
 
-`Tests/ARINC633KitTests/SpecValidationHarness.swift` parses **every** official sample in a
-local spec folder and reports, per file, whether it dispatched to a typed parser, whether
-it threw, and which elements were captured but not explicitly modeled (gap detection via
-the `extensions` bags). It **no‑ops when the spec folder is absent**, so it is safe to keep
-committed and never embeds spec content.
+`SpecValidationHarness` parses **every** official sample in your licensed spec copy and reports,
+per file, whether it dispatched to a typed parser, whether it threw, and which elements were
+captured but not explicitly modeled (gap detection via the `extensions` bags). It **no‑ops when
+the spec folder is absent** and never embeds spec content.
 
-The copyrighted spec lives **outside the repository** in a sibling `ARINC633Kit-local/`
-folder (so the repo contains only publishable content). The harness finds it automatically
-at `../ARINC633Kit-local/633-4 2`, or point it anywhere with an environment variable:
+The copyrighted spec is kept **outside the repository** (so the repo holds only publishable
+content). The harness finds it automatically at `../ARINC633Kit-local/633-4 2`, or point it
+anywhere:
 
 ```bash
 ARINC633_SPEC_DIR="/path/to/633-4" swift test --build-system native --filter SpecValidationHarness
 ```
 
+## Status & limitations
+
+All 21 message families parse the official sample corpus without throwing. The newer message
+types model their payloads with `extensions` bags for forward compatibility; a few of the
+original, larger SAX parsers (notably `FlightPlan` and `NOTAM`) still have known modeling gaps
+tracked for follow‑up — see the in‑code `TODO:` notes. Contributions welcome.
+
 ## License
 
-Licensed under the **Apache License, Version 2.0** — see [`LICENSE`](LICENSE) and
-[`NOTICE`](NOTICE). This license covers the library code only; it grants no rights to the
-ARINC Specification 633 itself, which is copyrighted by AEEC / SAE‑ITC and is not
-redistributed by this project.
+Licensed under the **Apache License, Version 2.0** — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+This license covers the library code only; it grants no rights to the ARINC Specification 633
+itself, which is copyrighted by AEEC / SAE‑ITC and is not redistributed by this project.
