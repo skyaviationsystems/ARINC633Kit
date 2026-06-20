@@ -35,11 +35,11 @@ public enum ARINC633Message: Sendable {
     case wba(WBAMessage)
     case fuel(FUELMessage)
     case deIcing(DeIcingMessage)
-    case paxList(StubMessage)
-    case regionWeather(StubMessage)
-    case upperAirData(StubMessage)
-    case airportData(StubMessage)
-    case generalError(StubMessage)
+    case paxList(PaxList)
+    case regionWeather(RegionWeatherBriefing)
+    case upperAirData(UpperAirData)
+    case airportData(AirportDataMessage)
+    case generalError(GeneralError)
 
     /// An unregistered root element, preserved verbatim as a structured tree.
     case captured(CapturedElement)

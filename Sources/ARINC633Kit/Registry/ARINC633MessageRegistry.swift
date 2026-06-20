@@ -112,28 +112,15 @@ public struct ARINC633MessageRegistry: Sendable {
         }
         for root in DeIcingMessage.rootElements { h[root] = deicing }
 
-        // -- Generic header-only stub messages --
-        h["PaxList"] = genericStub { .paxList($0) }
-        h["UpperAirData"] = genericStub { .upperAirData($0) }
-        h["AirportData"] = genericStub { .airportData($0) }
-        h["GERIND"] = genericStub { .generalError($0) }
-        let regionWeather = genericStub { .regionWeather($0) }
+        // -- Promoted CommonData / GeneralError parsers --
+        h["PaxList"] = { .paxList(try PaxListParser().parse(data: $0)) }
+        h["UpperAirData"] = { .upperAirData(try UpperAirDataParser().parse(data: $0)) }
+        h["AirportData"] = { .airportData(try AirportDataParser().parse(data: $0)) }
+        h["GERIND"] = { .generalError(try GeneralErrorParser().parse(data: $0)) }
+        let regionWeather: Handler = { .regionWeather(try RegionWeatherParser().parse(data: $0)) }
         h["RegionWeather"] = regionWeather
         h["RegionWeatherBriefing"] = regionWeather
 
         return ARINC633MessageRegistry(handlers: h)
-    }
-
-    /// Build a handler that runs `StubParser` and wraps the resulting `StubMessage`.
-    private static func genericStub(_ wrap: @escaping @Sendable (StubMessage) -> ARINC633Message) -> Handler {
-        { data in
-            let (header, supp, attrs, root) = try StubParser().parse(data: data)
-            return wrap(StubMessage(
-                header: header,
-                supplementaryHeader: supp,
-                rootElement: root,
-                rootAttributes: attrs
-            ))
-        }
     }
 }
