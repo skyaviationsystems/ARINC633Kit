@@ -1,0 +1,22 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# ARINC 633-4 specification material — COPYRIGHTED by AEEC / SAE-ITC.
+# NEVER commit any spec content (XSDs, PDF, official sample XML).
+# These local folder names must remain ignored.
+# ---------------------------------------------------------------------------
+633-4/
+633-4*/
+*.pdf
