@@ -6,8 +6,8 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
 
 A native Swift 6 library that parses **ARINC 633‑4** electronic flight‑folder / operational
-flight data — flight plans, weather, NOTAMs, load & trim, crew, fuel, de‑icing, and the rest
-of the message family — into strongly‑typed, `Sendable` value models.
+flight data (flight plans, weather, NOTAMs, load & trim, crew, fuel, de‑icing, and the rest
+of the message family) into strongly‑typed, `Sendable` value models.
 
 It’s a streaming (SAX‑based) parser with an open dispatch registry, a never‑drop capture
 fallback, and a clean extension point for airline and vendor message types.
