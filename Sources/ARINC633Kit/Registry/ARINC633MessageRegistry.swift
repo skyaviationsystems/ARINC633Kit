@@ -85,37 +85,11 @@ public struct ARINC633MessageRegistry: Sendable {
         // -- Fully typed parsers --
         h["ATIS"] = { .atis(try ATISParser().parse(data: $0)) }
 
-        // -- Header-only stub handlers (promoted to full parsers incrementally) --
-        h["RAIMReport"] = { data in
-            let (header, supp, _, _) = try StubParser().parse(data: data)
-            return .raimReport(RAIMReport(header: header, supplementaryHeader: supp))
-        }
-        h["PIREPBriefing"] = { data in
-            let (header, supp, attrs, _) = try StubParser().parse(data: data)
-            return .pirepBriefing(PIREPBriefing(
-                header: header,
-                supplementaryHeader: supp,
-                creationTime: attrs["creationTime"],
-                fullPackage: attrs["fullPackage"] == "true"
-            ))
-        }
-        h["HazardBriefing"] = { data in
-            let (header, supp, _, _) = try StubParser().parse(data: data)
-            return .hazardBriefing(HazardBriefing(header: header, supplementaryHeader: supp))
-        }
-        h["OrganizedTracks"] = { data in
-            let (header, supp, attrs, _) = try StubParser().parse(data: data)
-            return .organizedTracks(OrganizedTracksMessage(
-                header: header,
-                supplementaryHeader: supp,
-                trackMessageIdentifier: attrs["trackMessageIdentifier"],
-                area: attrs["area"]
-            ))
-        }
-        h["AirspaceData"] = { data in
-            let (header, supp, _, _) = try StubParser().parse(data: data)
-            return .airspaceData(AirspaceDataMessage(header: header, supplementaryHeader: supp))
-        }
+        h["RAIMReport"] = { .raimReport(try RAIMReportParser().parse(data: $0)) }
+        h["PIREPBriefing"] = { .pirepBriefing(try PIREPBriefingParser().parse(data: $0)) }
+        h["HazardBriefing"] = { .hazardBriefing(try HazardBriefingParser().parse(data: $0)) }
+        h["OrganizedTracks"] = { .organizedTracks(try OrganizedTracksParser().parse(data: $0)) }
+        h["AirspaceData"] = { .airspaceData(try AirspaceDataParser().parse(data: $0)) }
 
         // -- WBA family (shared payload, distinguished by root) --
         let wba: Handler = { data in
